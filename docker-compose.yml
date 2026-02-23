@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"    # API Port
+      - "9001:9001"    # Terminal Port
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: video_analysis_db
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  minio_data:
+
+  mongo_data:

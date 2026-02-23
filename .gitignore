@@ -1,0 +1,189 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+*.manifest
+*.spec
+
+# Virtual Environment
+venv/
+ENV/
+.env
+.venv/
+pyvenv.cfg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+!*.log.keep
+
+# Project-specific data files to ignore
+# Upload directory (user uploaded videos)
+/uploads/
+
+# MinIO local storage data
+/minio-data/
+
+# MongoDB local data
+/mongodb-data/
+
+# Test data and temporary files
+/test_data/
+/temp/
+/tmp/
+
+# Frontend build artifacts (if using Vue.js build process)
+/frontend/dist/
+/frontend/node_modules/
+/frontend/.env.local
+/frontend/.env.development.local
+/frontend/.env.test.local
+/frontend/.env.production.local
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# video
+backend/uploads/
+frontend/uploads/
+
+# Docker
+.dockerignore
+
+# Backup files
+*~
+*.bak
+*.tmp
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, if you prefer to exclude it, uncomment the line below
+# Pipfile.lock
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Configuration files with sensitive data
+# Keep .env.example but ignore actual .env
+!.env.example
+
+# Keep README and documentation files
+!.gitignore
+!README.md
+!docs/
+
+# Keep configuration files
+!docker-compose.yml
+!requirements.txt
+!no_parking_config.json
+
+# Keep ML model weights (your requirement)
+!ml_models/yolov8/weights/
+!ml_models/yolov8/weights/*
+
+# vite
+frontend/.vite/

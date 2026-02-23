@@ -1,0 +1,402 @@
+=== Event Image URLs (Copy & Paste in Browser) ===
+
+Event #1 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 22:06:06.298111
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/22/event_violations_1761401166_298.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T140640Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=e02d034ee648af2b8b93ac92fcb21a4fbdc223948ad978b38a9166f3ee4def0d
+----------------------------------------------------------------------------------------------------
+
+Event #2 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 22:06:06.298111
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/22/event_violations_1761401166_298.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T140640Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=e02d034ee648af2b8b93ac92fcb21a4fbdc223948ad978b38a9166f3ee4def0d
+----------------------------------------------------------------------------------------------------
+
+Event #3 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 22:03:54.437366
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/22/event_violations_1761401034_437.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T140433Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=1b3e42e274963530a3c3655356f0768577ca0a9032dd92c82735592f1ec38fbb
+----------------------------------------------------------------------------------------------------
+
+Event #4 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 22:03:54.437366
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/22/event_violations_1761401034_437.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T140433Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=1b3e42e274963530a3c3655356f0768577ca0a9032dd92c82735592f1ec38fbb
+----------------------------------------------------------------------------------------------------
+
+Event #5 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:29.222539
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397409_222.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130329Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2038fabf04b217a20dbad38b21b03c5e5349349c5d2d2708106e97f56e1e1414
+----------------------------------------------------------------------------------------------------
+
+Event #6 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:29.222539
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397409_222.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130329Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2038fabf04b217a20dbad38b21b03c5e5349349c5d2d2708106e97f56e1e1414
+----------------------------------------------------------------------------------------------------
+
+Event #7 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:29.222539
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397409_222.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130329Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2038fabf04b217a20dbad38b21b03c5e5349349c5d2d2708106e97f56e1e1414
+----------------------------------------------------------------------------------------------------
+
+Event #8 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:29.222539
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397409_222.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130329Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2038fabf04b217a20dbad38b21b03c5e5349349c5d2d2708106e97f56e1e1414
+----------------------------------------------------------------------------------------------------
+
+Event #9 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:29.222539
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397409_222.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130329Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2038fabf04b217a20dbad38b21b03c5e5349349c5d2d2708106e97f56e1e1414
+----------------------------------------------------------------------------------------------------
+
+Event #10 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130327Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=67968df47bcd0f48c28148f6cfaa44e44853224c76c2e5490dd3f600d7aec956
+----------------------------------------------------------------------------------------------------
+
+Event #11 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130327Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=67968df47bcd0f48c28148f6cfaa44e44853224c76c2e5490dd3f600d7aec956
+----------------------------------------------------------------------------------------------------
+
+Event #12 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130327Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=67968df47bcd0f48c28148f6cfaa44e44853224c76c2e5490dd3f600d7aec956
+----------------------------------------------------------------------------------------------------
+
+Event #13 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130327Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=67968df47bcd0f48c28148f6cfaa44e44853224c76c2e5490dd3f600d7aec956
+----------------------------------------------------------------------------------------------------
+
+Event #14 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130327Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=67968df47bcd0f48c28148f6cfaa44e44853224c76c2e5490dd3f600d7aec956
+----------------------------------------------------------------------------------------------------
+
+Event #15 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130327Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=67968df47bcd0f48c28148f6cfaa44e44853224c76c2e5490dd3f600d7aec956
+----------------------------------------------------------------------------------------------------
+
+Event #16 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130327Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=67968df47bcd0f48c28148f6cfaa44e44853224c76c2e5490dd3f600d7aec956
+----------------------------------------------------------------------------------------------------
+
+Event #17 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130327Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=67968df47bcd0f48c28148f6cfaa44e44853224c76c2e5490dd3f600d7aec956
+----------------------------------------------------------------------------------------------------
+
+Event #18 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130327Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=67968df47bcd0f48c28148f6cfaa44e44853224c76c2e5490dd3f600d7aec956
+----------------------------------------------------------------------------------------------------
+
+Event #19 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130327Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=67968df47bcd0f48c28148f6cfaa44e44853224c76c2e5490dd3f600d7aec956
+----------------------------------------------------------------------------------------------------
+
+Event #20 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130328Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2694c8f83a33f37e4fabfb5e43b35456a64a7c1f427677db63921b59fc39342b
+----------------------------------------------------------------------------------------------------
+
+Event #21 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130328Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2694c8f83a33f37e4fabfb5e43b35456a64a7c1f427677db63921b59fc39342b
+----------------------------------------------------------------------------------------------------
+
+Event #22 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130328Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2694c8f83a33f37e4fabfb5e43b35456a64a7c1f427677db63921b59fc39342b
+----------------------------------------------------------------------------------------------------
+
+Event #23 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130328Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2694c8f83a33f37e4fabfb5e43b35456a64a7c1f427677db63921b59fc39342b
+----------------------------------------------------------------------------------------------------
+
+Event #24 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130328Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2694c8f83a33f37e4fabfb5e43b35456a64a7c1f427677db63921b59fc39342b
+----------------------------------------------------------------------------------------------------
+
+Event #25 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130328Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2694c8f83a33f37e4fabfb5e43b35456a64a7c1f427677db63921b59fc39342b
+----------------------------------------------------------------------------------------------------
+
+Event #26 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130328Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2694c8f83a33f37e4fabfb5e43b35456a64a7c1f427677db63921b59fc39342b
+----------------------------------------------------------------------------------------------------
+
+Event #27 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130328Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2694c8f83a33f37e4fabfb5e43b35456a64a7c1f427677db63921b59fc39342b
+----------------------------------------------------------------------------------------------------
+
+Event #28 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130328Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2694c8f83a33f37e4fabfb5e43b35456a64a7c1f427677db63921b59fc39342b
+----------------------------------------------------------------------------------------------------
+
+Event #29 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:26.904868
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397406_904.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130328Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2694c8f83a33f37e4fabfb5e43b35456a64a7c1f427677db63921b59fc39342b
+----------------------------------------------------------------------------------------------------
+
+Event #30 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130324Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=1e6561bc48987561952d2c6068f390121353d5557297734c0cd29b1e7b0b29b5
+----------------------------------------------------------------------------------------------------
+
+Event #31 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130324Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=1e6561bc48987561952d2c6068f390121353d5557297734c0cd29b1e7b0b29b5
+----------------------------------------------------------------------------------------------------
+
+Event #32 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130324Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=1e6561bc48987561952d2c6068f390121353d5557297734c0cd29b1e7b0b29b5
+----------------------------------------------------------------------------------------------------
+
+Event #33 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130324Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=1e6561bc48987561952d2c6068f390121353d5557297734c0cd29b1e7b0b29b5
+----------------------------------------------------------------------------------------------------
+
+Event #34 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #35 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #36 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #37 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #38 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #39 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #40 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #41 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #42 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #43 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #44 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130325Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ee83cb6fd21e94c599bddb448ef49467b45e2d79369b59f7a187cb52e443c143
+----------------------------------------------------------------------------------------------------
+
+Event #45 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130326Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=fa2646dcc7490cf770c6fd447740d177ab4e3eb6c2a5d0e3b5d7d60c98618737
+----------------------------------------------------------------------------------------------------
+
+Event #46 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130326Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=fa2646dcc7490cf770c6fd447740d177ab4e3eb6c2a5d0e3b5d7d60c98618737
+----------------------------------------------------------------------------------------------------
+
+Event #47 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130326Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=fa2646dcc7490cf770c6fd447740d177ab4e3eb6c2a5d0e3b5d7d60c98618737
+----------------------------------------------------------------------------------------------------
+
+Event #48 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130326Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=fa2646dcc7490cf770c6fd447740d177ab4e3eb6c2a5d0e3b5d7d60c98618737
+----------------------------------------------------------------------------------------------------
+
+Event #49 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130326Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=fa2646dcc7490cf770c6fd447740d177ab4e3eb6c2a5d0e3b5d7d60c98618737
+----------------------------------------------------------------------------------------------------
+
+Event #50 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:24.575615
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397404_575.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130326Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=fa2646dcc7490cf770c6fd447740d177ab4e3eb6c2a5d0e3b5d7d60c98618737
+----------------------------------------------------------------------------------------------------
+
+Event #51 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130322Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=82139b17803646f7e075f4c9989ac24c4815e029cbd14fbaacfc54696b234f42
+----------------------------------------------------------------------------------------------------
+
+Event #52 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130322Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=82139b17803646f7e075f4c9989ac24c4815e029cbd14fbaacfc54696b234f42
+----------------------------------------------------------------------------------------------------
+
+Event #53 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130322Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=82139b17803646f7e075f4c9989ac24c4815e029cbd14fbaacfc54696b234f42
+----------------------------------------------------------------------------------------------------
+
+Event #54 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130322Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=82139b17803646f7e075f4c9989ac24c4815e029cbd14fbaacfc54696b234f42
+----------------------------------------------------------------------------------------------------
+
+Event #55 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130322Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=82139b17803646f7e075f4c9989ac24c4815e029cbd14fbaacfc54696b234f42
+----------------------------------------------------------------------------------------------------
+
+Event #56 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130322Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=82139b17803646f7e075f4c9989ac24c4815e029cbd14fbaacfc54696b234f42
+----------------------------------------------------------------------------------------------------
+
+Event #57 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130322Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=82139b17803646f7e075f4c9989ac24c4815e029cbd14fbaacfc54696b234f42
+----------------------------------------------------------------------------------------------------
+
+Event #58 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130322Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=82139b17803646f7e075f4c9989ac24c4815e029cbd14fbaacfc54696b234f42
+----------------------------------------------------------------------------------------------------
+
+Event #59 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130322Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=82139b17803646f7e075f4c9989ac24c4815e029cbd14fbaacfc54696b234f42
+----------------------------------------------------------------------------------------------------
+
+Event #60 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130323Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=d3a6c9631da3d4c0e6b3ede81a3b32f95a53b72c854ce38fd42321ff6d735c85
+----------------------------------------------------------------------------------------------------
+
+Event #61 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130323Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=d3a6c9631da3d4c0e6b3ede81a3b32f95a53b72c854ce38fd42321ff6d735c85
+----------------------------------------------------------------------------------------------------
+
+Event #62 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130323Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=d3a6c9631da3d4c0e6b3ede81a3b32f95a53b72c854ce38fd42321ff6d735c85
+----------------------------------------------------------------------------------------------------
+
+Event #63 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130323Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=d3a6c9631da3d4c0e6b3ede81a3b32f95a53b72c854ce38fd42321ff6d735c85
+----------------------------------------------------------------------------------------------------
+
+Event #64 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130323Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=d3a6c9631da3d4c0e6b3ede81a3b32f95a53b72c854ce38fd42321ff6d735c85
+----------------------------------------------------------------------------------------------------
+
+Event #65 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130323Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=d3a6c9631da3d4c0e6b3ede81a3b32f95a53b72c854ce38fd42321ff6d735c85
+----------------------------------------------------------------------------------------------------
+
+Event #66 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130323Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=d3a6c9631da3d4c0e6b3ede81a3b32f95a53b72c854ce38fd42321ff6d735c85
+----------------------------------------------------------------------------------------------------
+
+Event #67 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130323Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=d3a6c9631da3d4c0e6b3ede81a3b32f95a53b72c854ce38fd42321ff6d735c85
+----------------------------------------------------------------------------------------------------
+
+Event #68 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130323Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=d3a6c9631da3d4c0e6b3ede81a3b32f95a53b72c854ce38fd42321ff6d735c85
+----------------------------------------------------------------------------------------------------
+
+Event #69 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130323Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=d3a6c9631da3d4c0e6b3ede81a3b32f95a53b72c854ce38fd42321ff6d735c85
+----------------------------------------------------------------------------------------------------
+
+Event #70 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130324Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=9b45e0a6e7d55932a60ce81f0d95804ce43d58a72d50a33fc725c4171e0bab8d
+----------------------------------------------------------------------------------------------------
+
+Event #71 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 21:03:21.320060
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/21/event_car_1761397401_320.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T130324Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=9b45e0a6e7d55932a60ce81f0d95804ce43d58a72d50a33fc725c4171e0bab8d
+----------------------------------------------------------------------------------------------------
+
+Event #72 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:10.080288
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397030_080.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125710Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=65a4ffd88f27044793010dfbf1746602bc843b39d4b386540a4a23f8cf31f0b3
+----------------------------------------------------------------------------------------------------
+
+Event #73 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:10.080288
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397030_080.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125710Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=65a4ffd88f27044793010dfbf1746602bc843b39d4b386540a4a23f8cf31f0b3
+----------------------------------------------------------------------------------------------------
+
+Event #74 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:10.080288
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397030_080.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125710Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=65a4ffd88f27044793010dfbf1746602bc843b39d4b386540a4a23f8cf31f0b3
+----------------------------------------------------------------------------------------------------
+
+Event #75 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:10.080288
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397030_080.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125710Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=65a4ffd88f27044793010dfbf1746602bc843b39d4b386540a4a23f8cf31f0b3
+----------------------------------------------------------------------------------------------------
+
+Event #76 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:10.080288
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397030_080.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125710Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=65a4ffd88f27044793010dfbf1746602bc843b39d4b386540a4a23f8cf31f0b3
+----------------------------------------------------------------------------------------------------
+
+Event #77 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:10.080288
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397030_080.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125710Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=65a4ffd88f27044793010dfbf1746602bc843b39d4b386540a4a23f8cf31f0b3
+----------------------------------------------------------------------------------------------------
+
+Event #78 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125707Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=3447b78e2e2de35bf2e6a80a5d9ce4d40991275bb08220231813636afa9aac24
+----------------------------------------------------------------------------------------------------
+
+Event #79 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125707Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=3447b78e2e2de35bf2e6a80a5d9ce4d40991275bb08220231813636afa9aac24
+----------------------------------------------------------------------------------------------------
+
+Event #80 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #81 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #82 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #83 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #84 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #85 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #86 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #87 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #88 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #89 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #90 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #91 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125708Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=0ceba863d3665b25cc3ba53583af999cf330f029b0155c48b2a4916134701861
+----------------------------------------------------------------------------------------------------
+
+Event #92 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125709Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=48cd667ec63b3acc1059728ff61a9bb522e000349db320525a846bc00023cf8d
+----------------------------------------------------------------------------------------------------
+
+Event #93 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125709Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=48cd667ec63b3acc1059728ff61a9bb522e000349db320525a846bc00023cf8d
+----------------------------------------------------------------------------------------------------
+
+Event #94 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125709Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=48cd667ec63b3acc1059728ff61a9bb522e000349db320525a846bc00023cf8d
+----------------------------------------------------------------------------------------------------
+
+Event #95 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125709Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=48cd667ec63b3acc1059728ff61a9bb522e000349db320525a846bc00023cf8d
+----------------------------------------------------------------------------------------------------
+
+Event #96 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125709Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=48cd667ec63b3acc1059728ff61a9bb522e000349db320525a846bc00023cf8d
+----------------------------------------------------------------------------------------------------
+
+Event #97 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:07.701017
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397027_701.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125709Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=48cd667ec63b3acc1059728ff61a9bb522e000349db320525a846bc00023cf8d
+----------------------------------------------------------------------------------------------------
+
+Event #98 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:04.855519
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397024_855.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125704Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=8d5bdddcc0b767ba9fa3cc3f3f2d71138c6f2bd62a61ba20b15005cb32400315
+----------------------------------------------------------------------------------------------------
+
+Event #99 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:04.855519
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397024_855.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125705Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=87e27ec96d3f90e8359051dc21fc8092123b1112ade72e1795bcf7372fcb577b
+----------------------------------------------------------------------------------------------------
+
+Event #100 | 19974959-uhd_2160_3840_30fps.mp4 | 2025-10-25 20:57:04.855519
+http://localhost:9000/video-events/19974959-uhd_2160_3840_30fps.mp4/2025/10/25/20/event_car_1761397024_855.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20251025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251025T125705Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=87e27ec96d3f90e8359051dc21fc8092123b1112ade72e1795bcf7372fcb577b
+----------------------------------------------------------------------------------------------------
+
