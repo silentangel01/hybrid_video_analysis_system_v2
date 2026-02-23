@@ -47,8 +47,6 @@ class SmokeFlameDetectionService:
         self.thread_pool = ThreadPoolExecutor(max_workers=6)  # 增加并行工作线程 | Increase parallel workers
         self.detection_cache = {}  # 检测结果缓存 | Detection result cache
 
-
-
     # -------------------- 依赖注入 --------------------
     def set_clients(self, minio_client: MinIOClient, mongo_client: MongoDBClient):
         """Set storage clients"""
@@ -79,7 +77,10 @@ class SmokeFlameDetectionService:
             frame_meta: 帧元数据 | Frame metadata
         """
         if not all([self.minio_client, self.mongo_client, self.yolo_model]):
-            logger.error("❌ Service not fully initialized.")
+            logger.error(f"❌ Service not fully initialized. "
+                         f"minio={self.minio_client is not None}, "
+                         f"mongo={self.mongo_client is not None}, "
+                         f"yolo={self.yolo_model is not None}")
             return
 
         source_id = frame_meta.source_id

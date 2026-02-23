@@ -15,7 +15,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 def draw_detection_box(
         image: np.ndarray,
         class_name: str,
@@ -141,6 +140,7 @@ def render_official_frame(
         if zones:
             for zone in zones:
                 img = draw_no_parking_zone(img, zone, color=(0, 0, 255), alpha=0.25)
+                logger.debug(f"Drawing zone绘制违停区域: {zone}")
 
         # 2. 创建违规目标集合用于快速查找
         violation_set = set()
@@ -164,10 +164,11 @@ def render_official_frame(
                     continue
 
                 # 检查是否为违规目标
-                bbox_key = tuple(bbox)
-                is_violation = bbox_key in violation_set
+                #bbox_key = tuple(bbox)
+                #is_violation = bbox_key in violation_set
 
-                # 选择颜色：红色表示违规，绿色表示正常
+                is_violation = detection in violations
+
                 color = (0, 0, 255) if is_violation else (0, 255, 0)
 
                 # 绘制检测框

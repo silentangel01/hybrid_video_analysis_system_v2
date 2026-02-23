@@ -17,13 +17,16 @@ class YOLOModelLoader:
     👉 Added robust class name mapping support.
     """
 
-    def __init__(self, weights_dir: Optional[str] = None):
-        """
+    """
         In order to deal with Yolo not Found.
+        
+        def __init__(self, weights_dir: str = "./ml_models/yolov8/weights"):
+        self.weights_dir = weights_dir
+        self.models: Dict[str, YOLO] = {}  # {model_name: YOLO instance}
+        self.model_names: Dict[str, Dict[int, str]] = {}  # {model_name: {0: 'person', 1: 'car', ...}}
+    """
 
-        Args:
-            weights_dir: Path to weights directory. If None, auto-detects project root.
-        """
+    def __init__(self, weights_dir: Optional[str] = None):
         if weights_dir is None:
             # 自动推断项目根目录（基于 model_loader.py 的位置）
             current_file = os.path.abspath(__file__)
