@@ -7,7 +7,6 @@ import logging
 from typing import Dict, Any
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -29,8 +28,8 @@ def load_config() -> Dict[str, Any]:
         "mongo_db_name": os.getenv("MONGO_DB_NAME", "video_analysis_db"),
         "upload_folder": os.getenv("UPLOAD_FOLDER", "./uploads"),
         "frame_interval_sec": float(os.getenv("FRAME_INTERVAL", "1.0")),
-        "common_space_interval_sec": float(os.getenv("COMMON_SPACE_INTERVAL", "30.0")),  # ✅ 新增：公共空间采样间隔
-        "rtsp_urls": os.getenv("RTSP_URLS", "").split(","),  # 支持多路 RTSP
+        "common_space_interval_sec": float(os.getenv("COMMON_SPACE_INTERVAL", "30.0")),
+        "rtsp_urls": os.getenv("RTSP_URLS", "").split(","),
         "qwen_vl_api_url": os.getenv("QWEN_VL_API_URL", ""),
         "qwen_vl_api_key": os.getenv("QWEN_VL_API_KEY", ""),
         "qwen_vl_model_name": os.getenv("QWEN_VL_MODEL_NAME", "qwen-vl-plus"),
@@ -61,40 +60,38 @@ def initialize_services(cfg: Dict[str, Any]):
 
     loader = YOLOModelLoader()
     loader.load_model("vehicle", "yolov8n.pt")
-    # 尝试加载烟火检测模型（如果存在）
     try:
         loader.load_model("smoke_flame", "smoke_flame.pt")
         logger.info("✅ Smoke/Flame model loaded")
     except Exception as e:
         logger.warning(f"⚠️ Smoke/Flame model not available: {e}")
 
+    # 【关键修复】创建唯一的 zone_checker 实例
     zone_checker = NoParkingZoneChecker()
+    logger.info(f"✅ Created single zone_checker instance (ID: {id(zone_checker)}) with zones: {list(zone_checker.zones.keys())}")
 
     # ----------- 3. 检测服务 -----------
     from backend.services.violation_detection import detection_service as parking_service
     from backend.services.smoke_flame_detection import smoke_flame_detection_service, QwenVLAPIClient
-    from backend.services.common_space_detection import common_space_detection_service  # ✅ 新增：公共空间检测服务
-    from backend.config.qwen_vl_config import qwen_vl_api_config  # ✅ 导入配置对象
+    from backend.services.common_space_detection import common_space_detection_service
+    from backend.config.qwen_vl_config import qwen_vl_api_config
 
-    # 电子围栏检测服务
+    # 【关键修复】电子围栏检测服务 - 注入同一个 zone_checker 实例
     parking_service.set_clients(minio_client=minio, mongo_client=mongo)
     parking_service.set_model_loader(loader)
-    parking_service.set_zone_checker(zone_checker)
+    parking_service.set_zone_checker(zone_checker)  # ← 关键：注入实例
     logger.info("✅ Parking violation detection service ready.")
 
     # 烟火检测服务
     smoke_service_ready = False
     qwen_vl_client = None
 
-    # ✅ 修复：使用配置对象而不是cfg字典
     logger.info(f"🔍 Qwen-VL Config Check:")
     logger.info(f"   Config API URL: {qwen_vl_api_config.get_api_url()}")
     logger.info(f"   Config API Key configured: {bool(qwen_vl_api_config.get_api_key())}")
     logger.info(f"   Config Overall configured: {qwen_vl_api_config.is_configured()}")
 
-    # ✅ 修复：优先使用配置对象，如果配置对象未配置则使用环境变量
     if qwen_vl_api_config.is_configured():
-        # 使用配置文件中的配置
         try:
             qwen_vl_client = QwenVLAPIClient(
                 api_url=qwen_vl_api_config.get_api_url(),
@@ -109,7 +106,6 @@ def initialize_services(cfg: Dict[str, Any]):
         except Exception as e:
             logger.error(f"❌ Failed to initialize smoke/flame detection with config file: {e}")
     elif cfg["qwen_vl_api_url"] and cfg["qwen_vl_api_key"]:
-        # 回退到环境变量配置
         try:
             qwen_vl_client = QwenVLAPIClient(
                 api_url=cfg["qwen_vl_api_url"],
@@ -127,11 +123,10 @@ def initialize_services(cfg: Dict[str, Any]):
         logger.warning(
             "⚠️ Qwen-VL API not configured in both config file and environment variables, smoke/flame detection disabled")
 
-    # ✅ 新增：公共空间分析服务初始化
+    # 公共空间分析服务
     common_space_service_ready = False
     if qwen_vl_client:
         try:
-            # 初始化公共空间分析服务
             common_space_detection_service.set_clients(minio, mongo)
             common_space_detection_service.set_qwen_vl_client(qwen_vl_client)
             common_space_detection_service.set_sample_interval(cfg["common_space_interval_sec"])
@@ -147,13 +142,13 @@ def initialize_services(cfg: Dict[str, Any]):
         "minio": minio,
         "mongo": mongo,
         "loader": loader,
-        "zone_checker": zone_checker,
+        "zone_checker": zone_checker,  # ← 返回同一个实例
         "parking_service": parking_service,
         "smoke_service": smoke_flame_detection_service,
-        "common_space_service": common_space_detection_service,  # ✅ 新增
+        "common_space_service": common_space_detection_service,
         "qwen_vl_client": qwen_vl_client,
         "smoke_service_ready": smoke_service_ready,
-        "common_space_service_ready": common_space_service_ready  # ✅ 新增
+        "common_space_service_ready": common_space_service_ready
     }
 
 
@@ -161,11 +156,10 @@ def initialize_services(cfg: Dict[str, Any]):
 # 更新多文件夹监控配置 | Update multi-folder monitoring configuration
 # ------------------------------------------------------------------
 def update_monitor_folders_config():
-    """更新监控文件夹配置以包含公共空间分析 | Update monitor folders config to include common space analysis"""
+    """更新监控文件夹配置以包含公共空间分析"""
     try:
         from scripts.file_watcher import MONITOR_FOLDERS
 
-        # ✅ 新增：在MONITOR_FOLDERS中添加公共空间分析
         if "common_space" not in MONITOR_FOLDERS:
             MONITOR_FOLDERS["common_space"] = "common_space"
             logger.info("✅ Added common_space folder to MONITOR_FOLDERS configuration")
@@ -181,35 +175,29 @@ def update_monitor_folders_config():
 # ------------------------------------------------------------------
 def start_multi_folder_monitoring(cfg: Dict[str, Any], services: Dict[str, Any]) -> bool:
     """
-    尝试启动多文件夹监控（更新支持公共空间分析）
-    Try to start multi-folder monitoring (updated for common space analysis)
-
-    Returns:
-        bool: 是否成功启动
+    尝试启动多文件夹监控（确保传入同一个 zone_checker 实例）
     """
     try:
-        # ✅ 更新：导入支持公共空间分析的文件监控函数
         from scripts.file_watcher import start_multi_folder_watchdog
 
-        # ✅ 更新：配置监控文件夹
         MONITOR_FOLDERS = update_monitor_folders_config()
         if not MONITOR_FOLDERS:
             logger.error("❌ Failed to get monitor folders configuration")
             return None
 
-        # ✅ 更新：确保上传文件夹的子目录存在
         upload_folder = cfg["upload_folder"]
         for folder_name in MONITOR_FOLDERS.keys():
             folder_path = os.path.join(upload_folder, folder_name)
             os.makedirs(folder_path, exist_ok=True)
             logger.info(f"📁 Created/verified folder: {folder_path}")
 
+        # 【关键修复】传入同一个 zone_checker 实例
         observer = start_multi_folder_watchdog(
             base_folder=cfg["upload_folder"],
             model_loader=services["loader"],
             parking_detection_service=services["parking_service"],
             smoke_flame_detection_service=services["smoke_service"],
-            zone_checker=services["zone_checker"],
+            zone_checker=services["zone_checker"],  # ← 关键：同一个实例
             frame_interval=cfg["frame_interval_sec"]
         )
 
@@ -218,7 +206,7 @@ def start_multi_folder_monitoring(cfg: Dict[str, Any], services: Dict[str, Any])
         logger.info("   uploads/")
         logger.info("   ├── 🅿️ parking/        - 电子围栏检测视频")
         logger.info("   ├── 🔥 smoke_flame/    - 烟火检测视频")
-        logger.info("   └── 🏢 common_space/   - ✅ 新增：公共空间分析视频")
+        logger.info("   └── 🏢 common_space/   - 公共空间分析视频")
 
         if not services["smoke_service_ready"]:
             logger.warning("   ⚠️ 烟火检测服务未就绪，请检查Qwen-VL配置")
@@ -240,11 +228,12 @@ def start_single_folder_monitoring(cfg: Dict[str, Any], services: Dict[str, Any]
     try:
         from scripts.file_watcher import start_file_watchdog
 
+        # 【关键修复】传入同一个 zone_checker 实例
         observer = start_file_watchdog(
             folder_path=cfg["upload_folder"],
             model_loader=services["loader"],
             detection_service=services["parking_service"],
-            zone_checker=services["zone_checker"],
+            zone_checker=services["zone_checker"],  # ← 关键：同一个实例
             frame_interval=cfg["frame_interval_sec"]
         )
 
@@ -257,21 +246,19 @@ def start_single_folder_monitoring(cfg: Dict[str, Any], services: Dict[str, Any]
 
 
 # ------------------------------------------------------------------
-# 文件处理回调（更新支持公共空间分析）| File processing callback (updated for common space analysis)
+# 文件处理回调 | File processing callback
 # ------------------------------------------------------------------
 def create_file_processor(cfg: Dict[str, Any], services: Dict[str, Any]):
-    """创建文件处理器 | Create file processor"""
+    """创建文件处理器"""
 
     def process_video_file(video_path: str):
-        """处理视频文件（更新支持公共空间分析）| Process video file (updated for common space analysis)"""
+        """处理视频文件"""
         try:
             from backend.utils.video_processor import infer_detection_type_from_path, process_video_official
 
-            # 推断检测类型
             detection_type = infer_detection_type_from_path(video_path, cfg["upload_folder"])
             logger.info(f"🎬 Processing: {os.path.basename(video_path)} | Type: {detection_type}")
 
-            # 根据检测类型选择Qwen-VL客户端
             qwen_client = None
             if detection_type in ["smoke_flame", "common_space"]:
                 qwen_client = services["qwen_vl_client"]
@@ -279,11 +266,10 @@ def create_file_processor(cfg: Dict[str, Any], services: Dict[str, Any]):
                     logger.error(f"❌ Qwen-VL client not available for {detection_type} detection")
                     return
 
-            # 处理视频
             process_video_official(
                 video_path=video_path,
                 model_loader=services["loader"],
-                zone_checker=services["zone_checker"],
+                zone_checker=services["zone_checker"],  # ← 同一个实例
                 frame_interval=cfg["frame_interval_sec"],
                 detection_type=detection_type,
                 minio_client=services["minio"],
@@ -298,13 +284,10 @@ def create_file_processor(cfg: Dict[str, Any], services: Dict[str, Any]):
 
 
 # ------------------------------------------------------------------
-# RTSP处理回调（更新支持多种检测类型）| RTSP processing callback (updated for multiple detection types)
+# RTSP处理回调 | RTSP processing callback
 # ------------------------------------------------------------------
 def create_rtsp_callback(services: Dict[str, Any], rtsp_id: str, detection_type: str = "parking_violation"):
-    """
-    创建RTSP回调函数（支持多种检测类型）
-    Create RTSP callback function (supporting multiple detection types)
-    """
+    """创建RTSP回调函数"""
 
     def rtsp_callback(source_id, frames):
         for frame_meta in frames:
@@ -324,31 +307,24 @@ def create_rtsp_callback(services: Dict[str, Any], rtsp_id: str, detection_type:
 
 
 # ------------------------------------------------------------------
-# 启动RTSP源（更新支持多种检测类型）| Start RTSP sources (updated for multiple detection types)
+# 启动RTSP源 | Start RTSP sources
 # ------------------------------------------------------------------
 def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any]):
-    """
-    启动多路RTSP源（支持多种检测类型）
-    Start multiple RTSP sources (supporting multiple detection types)
-    """
+    """启动多路RTSP源"""
     rtsp_count = 0
     rtsp_configs = []
 
-    # ✅ 新增：支持RTSP源的检测类型配置
-    # 格式：RTSP_URL_0=rtsp://...|parking_violation,RTSP_URL_1=rtsp://...|smoke_flame
     for idx, url_with_type in enumerate(cfg["rtsp_urls"]):
         if not url_with_type.strip():
             continue
 
-        # 解析URL和检测类型
         parts = url_with_type.strip().split("|")
         rtsp_url = parts[0].strip()
         if len(parts) > 1:
             detection_type = parts[1].strip()
         else:
-            detection_type = "parking_violation"  # 默认电子围栏检测
+            detection_type = "parking_violation"
 
-        # 验证检测类型
         valid_types = ["parking_violation", "smoke_flame", "common_space"]
         if detection_type not in valid_types:
             logger.warning(f"⚠️ Invalid detection type '{detection_type}' for RTSP {idx}, using default")
@@ -367,7 +343,6 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any]):
             rtsp_id = f"rtsp_{config['idx']}"
             detection_type = config["detection_type"]
 
-            # 检查服务是否就绪
             if detection_type == "smoke_flame" and not services["smoke_service_ready"]:
                 logger.warning(f"⚠️ Smoke/flame detection not ready for RTSP {config['idx']}, skipping")
                 continue
@@ -376,11 +351,7 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any]):
                 continue
 
             cap = VideoFrameCapture()
-
-            # 注册回调
             cap.register_batch_callback(create_rtsp_callback(services, rtsp_id, detection_type))
-
-            # 添加RTSP源
             cap.add_rtsp_source(
                 source_id=rtsp_id,
                 rtsp_url=config["url"],
@@ -422,13 +393,13 @@ def main():
                 logger.error("❌ Both multi-folder and single-folder monitoring failed")
                 return
 
-        # ----------- 4. 多路 RTSP（可选，更新支持多种检测类型） -----------
+        # ----------- 4. 多路 RTSP（可选） -----------
         rtsp_count = start_rtsp_sources(cfg, services)
 
         if rtsp_count > 0:
             logger.info(f"✅ {rtsp_count} RTSP sources initialized")
 
-        # ----------- 5. 系统状态报告（更新） -----------
+        # ----------- 5. 系统状态报告 -----------
         logger.info("📊 System Status:")
         logger.info(f"   📁 Upload folder: {cfg['upload_folder']}")
         logger.info(f"   🅿️ Parking detection: ✅ Ready")
@@ -440,16 +411,14 @@ def main():
         logger.info(f"   📹 RTSP sources: {rtsp_count}")
         logger.info(f"   ⏱️ Frame interval: {cfg['frame_interval_sec']}s")
 
-        # ----------- 6. 创建uploads目录结构（确保存在） -----------
+        # ----------- 6. 创建uploads目录结构 -----------
         upload_folder = cfg["upload_folder"]
         os.makedirs(upload_folder, exist_ok=True)
 
-        # ✅ 新增：创建公共空间分析子目录
         common_space_folder = os.path.join(upload_folder, "common_space")
         os.makedirs(common_space_folder, exist_ok=True)
         logger.info(f"📁 Created directory: {common_space_folder}")
 
-        # 创建其他子目录
         for folder_name in ["parking", "smoke_flame"]:
             folder_path = os.path.join(upload_folder, folder_name)
             os.makedirs(folder_path, exist_ok=True)
@@ -459,7 +428,7 @@ def main():
         logger.info("   1. Place videos for analysis in the following folders:")
         logger.info("      - 🅿️  uploads/parking/        : Parking violation detection")
         logger.info("      - 🔥  uploads/smoke_flame/    : Smoke/Flame detection")
-        logger.info("      - 🏢  uploads/common_space/   : ✅ Public space analysis (new)")
+        logger.info("      - 🏢  uploads/common_space/   : Public space analysis (new)")
         logger.info("   2. The system will automatically process uploaded videos")
         logger.info("   3. For common space analysis, frames are sampled every 30 seconds")
         logger.info("   4. Analysis results are saved to MinIO and MongoDB")
@@ -475,7 +444,6 @@ def main():
             observer.stop()
             observer.join()
 
-            # 刷新剩余数据
             services["parking_service"].flush_remaining()
             if services["smoke_service_ready"]:
                 services["smoke_service"].flush_remaining()

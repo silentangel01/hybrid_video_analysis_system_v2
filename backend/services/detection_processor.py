@@ -26,6 +26,12 @@ class DetectionProcessor:
         self.db = mongo_client
         self.zone_checker = None   # 外部注入
 
+    # -------------------- 新增：设置 zone_checker --------------------
+    def set_zone_checker(self, zone_checker):
+        """外部注入 zone_checker 实例"""
+        self.zone_checker = zone_checker
+        logger.info(f"✅ Zone checker injected: {len(zone_checker.zones)} zones loaded")
+
     # -------------------- 唯一公开入口 --------------------
     def process_detections(self,
                            frame_meta: FrameWithMetadata,

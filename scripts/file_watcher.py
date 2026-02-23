@@ -8,9 +8,13 @@ File Watcher Module —— 多文件夹监控版本
 同时保持向后兼容性
 """
 
+import sys
 import os
+import subprocess
 import time
 import logging
+from tkinter import messagebox
+
 import cv2
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -19,15 +23,16 @@ from typing import Optional, Dict, Any
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from backend.services.parking_zone_checker import load_zones_from_file
+NO_PARKING_CONFIG_PATH = "no_parking_config.json"
 SUPPORTED_VIDEO_EXTS = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
 
 # 定义监控的子文件夹和对应的检测类型
 MONITOR_FOLDERS = {
-    "parking": "parking_violation",  # 电子围栏检测
-    "smoke_flame": "smoke_flame",  # 烟火检测
-    "common_space": "common_space" # 公共空间分析
+    "parking": "parking_violation",
+    "smoke_flame": "smoke_flame",
+    "common_space": "common_space"
 }
-
 
 # -------------------- 工具函数 --------------------
 def is_file_locked(filepath: str) -> bool:
@@ -70,8 +75,8 @@ class MultiFolderVideoHandler(FileSystemEventHandler):
             self,
             base_folder: str,
             model_loader,
-            parking_detection_service,  # 电子围栏检测服务
-            smoke_flame_detection_service,  # 烟火检测服务
+            parking_detection_service,
+            smoke_flame_detection_service,
             zone_checker,
             frame_interval: float = 1.0
     ):
@@ -138,6 +143,55 @@ class MultiFolderVideoHandler(FileSystemEventHandler):
         处理电子围栏检测
         Process parking violation detection
         """
+        if source_id not in self.zone_checker.zones:
+            logger.warning(f"⚠️ NO EXACT CONFIG FOUND for '{source_id}'! Launching GUI to define zone...")
+
+            gui_script = os.path.join(os.path.dirname(__file__), "draw_fence_gui.py")
+            if not os.path.exists(gui_script):
+                gui_script = "draw_fence_gui.py"  # Fallback
+
+            cmd = [
+                sys.executable,
+                gui_script,
+                "--video", video_path,
+                "--test-mode"
+            ]
+
+            try:
+                logger.info(f"🎨 LAUNCHING GUI: {' '.join(cmd)}")
+                # 阻塞等待GUI完成（用户点击"Finish & Exit"）
+                subprocess.run(cmd, check=True)
+
+                # 重新加载配置（覆盖整个 zones 字典）
+                logger.info(f"🔄 Reloading zone config from: {NO_PARKING_CONFIG_PATH}")
+                new_zones = load_zones_from_file(NO_PARKING_CONFIG_PATH)
+
+                # 更新 file_watcher 中的 zone_checker
+                self.zone_checker.zones = new_zones
+
+                # 【关键修复】同步更新 detection_service 中的 zone_checker
+                if (hasattr(self.parking_detection_service, 'zone_checker') and
+                        self.parking_detection_service.zone_checker):
+                    self.parking_detection_service.zone_checker.zones = new_zones
+                    logger.info("✅ Synced zone_checker to detection_service")
+                else:
+                    logger.warning("⚠️ detection_service.zone_checker not found, may cause inconsistency")
+
+                # 二次验证：GUI是否真的保存了配置
+                if source_id not in self.zone_checker.zones:
+                    logger.error(f"❌ GUI exited but NO zone saved for '{source_id}'. SKIPPING video.")
+                    if messagebox:
+                        messagebox.showerror("Error", f"Zone not saved for {source_id}. Video skipped.")
+                    return
+                else:
+                    logger.info(f"✅ Zone successfully configured for '{source_id}' via GUI. Resuming processing...")
+            except subprocess.CalledProcessError:
+                logger.error(f"❌ GUI closed without saving (user canceled). SKIPPING video '{source_id}'.")
+                return
+            except Exception as e:
+                logger.error(f"❌ Failed to launch GUI: {e}. SKIPPING video.")
+                return
+
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             logger.error(f"[Error] Cannot open: {video_path}")
@@ -481,7 +535,7 @@ if __name__ == "__main__":
     from backend.config.database import init_clients
     from ml_models.yolov8.model_loader import YOLOModelLoader
     from backend.services.violation_detection import detection_service
-    from backend.services.parking_zone_checker import zone_checker
+    from backend.services.parking_zone_checker import zone_checker, load_zones_from_file
 
     # 初始化服务（原有的初始化逻辑）
     minio_client, mongo_client = init_clients()

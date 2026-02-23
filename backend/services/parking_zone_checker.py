@@ -21,9 +21,6 @@ CONFIG_FILE = "no_parking_config.json"
 DEFAULT_ZONES: Dict[str, List[List[Tuple[int, int]]]] = {
     "camera_parking_lot": [
         [(100, 150), (300, 100), (400, 200), (200, 300)]   # tuple
-    ],
-    "*.mp4": [
-        [(100, 100), (300, 100), (300, 300), (100, 300)]  # tuple
     ]
 }
 
@@ -132,6 +129,7 @@ class NoParkingZoneChecker:
         x1, y1, x2, y2 = bbox
         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
         zones = self.get_zones_for_source(source_id)
+
         for poly in zones:
             if cv2.pointPolygonTest(np.array(poly, dtype=np.float32), (cx, cy), False) >= 0:
                 return True
@@ -141,14 +139,24 @@ class NoParkingZoneChecker:
     # 通用：获取区域列表
     # ----------------------------------------------------------
     def get_zones_for_source(self, source_id: str) -> List[List[Tuple[int, int]]]:
-        """
-        返回 source_id 对应的全部多边形区域（支持通配符）。
-        Always return List[List[Tuple]], never None.
-        """
-        if source_id in self.zones:
-            return self.zones[source_id]
-        # 通配符匹配
-        for pattern, zones in self.zones.items():
-            if fnmatch.fnmatch(source_id, pattern):
-                return zones
+        """增强匹配：尝试原始ID、basename、无扩展名三种形式"""
+        # 标准化：移除路径，保留扩展名（与GUI保存逻辑对齐）
+        clean_key = os.path.basename(source_id)
+        logger.info(f"🔍 DEBUG: Requested source_id = '{source_id}'")
+
+        # 优先匹配带扩展名的键（GUI保存格式）
+        if clean_key in self.zones:
+            logger.info(f"✅ Matched config key (with ext): '{clean_key}'")
+            return self.zones[clean_key]
+
+        # 备用：尝试无扩展名匹配
+        no_ext_key = os.path.splitext(clean_key)[0]
+        if no_ext_key in self.zones:
+            logger.info(f"✅ Matched config key (no ext): '{no_ext_key}'")
+            return self.zones[no_ext_key]
+
+        logger.warning(
+            f"⚠️ No zones for '{source_id}'. Tried: ['{clean_key}', '{no_ext_key}']. "
+            f"Available keys: {list(self.zones.keys())}"
+        )
         return []

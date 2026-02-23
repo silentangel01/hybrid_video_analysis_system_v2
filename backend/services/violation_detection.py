@@ -42,8 +42,11 @@ class ViolationDetectionService:
     def set_model_loader(self, loader: YOLOModelLoader):
         self.model_loader = loader
 
-    def set_zone_checker(self, checker: NoParkingZoneChecker):
-        self.zone_checker = checker
+    def set_zone_checker(self, zone_checker: NoParkingZoneChecker):
+        self.zone_checker = zone_checker
+        # 如果 processor 存在，也同步设置
+        if hasattr(self, 'processor') and self.processor:
+            self.processor.set_zone_checker(zone_checker)
 
     def flush_remaining(self):
         """处理剩余帧（兼容性方法）"""
@@ -60,6 +63,8 @@ class ViolationDetectionService:
 
         source_id = frame_meta.source_id
         image = frame_meta.image
+
+        logger.info(f"🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍DEBUG: Backend source_id = '{source_id}' (type: {type(source_id)})")
 
         # 🔴 修复时间戳问题 - 使用当前系统时间
         current_timestamp = time.time()
@@ -89,6 +94,13 @@ class ViolationDetectionService:
         # 2. 过滤
         logger.info(f"🔒 BEFORE filter: {len(detections)} detections")
         violations = self.zone_checker.filter_violations_in_zones(detections, source_id)
+
+        zones = self.zone_checker.get_zones_for_source(source_id)
+        # ✅【DEBUG 3】打印关键状态
+        logger.info(f"🔍 DEBUG: Zones count = {len(zones)} | Violations count = {len(violations)}")
+        if zones:
+            logger.info(f"🔍 DEBUG: First zone example = {zones[0][:3]}...")  # 打印前3个点
+
         logger.info(f"🔒 AFTER filter: {len(violations)} violations")
 
         # 3. 一次性渲染 - 🔴 修复：传递所有检测目标和违规目标
