@@ -38,7 +38,7 @@ class StreamManager:
         self.streams: Dict[str, StreamConfig] = {}
         self.dispatcher = TaskDispatcher(services)
         self.mongo = mongo_client
-        self._streams_col = mongo_client.db["streams"] if mongo_client and mongo_client.db else None
+        self._streams_col = mongo_client.db["streams"] if mongo_client is not None and mongo_client.db is not None else None
         self.lock = threading.Lock()
         self._counter = 0
         self._restore_streams()
