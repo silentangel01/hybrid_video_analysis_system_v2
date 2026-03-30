@@ -1,24 +1,49 @@
 <template>
   <div id="app">
     <h1>Hybrid Video Analysis System</h1>
-    <UploadVideo />
 
-    <!-- 火情报警弹窗 -->
-    <div v-if="fireAlert.show" class="alert-modal">
-      <div class="alert-content">
-        <div class="alert-icon">🔥</div>
-        <h3>火情警报！</h3>
-        <p>在以下视频中检测到火情：</p>
-        <ul class="video-list">
-          <li v-for="source in fireAlert.sources" :key="source">
-            {{ source }}
-          </li>
-        </ul>
-        <button @click="closeAlert">关闭</button>
-      </div>
+    <!-- Tab navigation -->
+    <div class="tab-nav">
+      <button
+        :class="['tab-btn', { active: activeTab === 'analysis' }]"
+        @click="activeTab = 'analysis'"
+      >
+        Video Analysis
+      </button>
+      <button
+        :class="['tab-btn', { active: activeTab === 'rtsp' }]"
+        @click="activeTab = 'rtsp'"
+      >
+        RTSP Management
+      </button>
     </div>
-    <!-- 新增：事件列表 -->
-    <EventList />
+
+    <!-- Tab 1: Video Analysis (existing) -->
+    <div v-show="activeTab === 'analysis'">
+      <UploadVideo />
+
+      <!-- Fire alert modal -->
+      <div v-if="fireAlert.show" class="alert-modal">
+        <div class="alert-content">
+          <div class="alert-icon">🔥</div>
+          <h3>Fire Alert!</h3>
+          <p>Fire detected in the following sources:</p>
+          <ul class="video-list">
+            <li v-for="source in fireAlert.sources" :key="source">
+              {{ source }}
+            </li>
+          </ul>
+          <button @click="closeAlert">Close</button>
+        </div>
+      </div>
+
+      <EventList />
+    </div>
+
+    <!-- Tab 2: RTSP Management -->
+    <div v-show="activeTab === 'rtsp'">
+      <StreamManager />
+    </div>
   </div>
 </template>
 
@@ -26,8 +51,10 @@
 import {ref, onMounted, onUnmounted} from 'vue';
 import UploadVideo from './components/UploadVideo.vue';
 import EventList from './components/EventList.vue';
+import StreamManager from './components/StreamManager.vue';
 
-// 定义响应式报警状态
+const activeTab = ref('analysis');
+
 const fireAlert = ref({
   show: false,
   sources: []
@@ -37,7 +64,7 @@ let pollingInterval = null;
 
 async function checkFireEvents() {
   try {
-    console.log('🔍 开始检查火情事件...');
+    console.log('🔍 Checking fire events...');
     const response = await fetch('http://localhost:8080/api/events');
 
     if (!response.ok) {
@@ -45,22 +72,21 @@ async function checkFireEvents() {
     }
 
     const data = await response.json();
-    console.log('📥 收到数据:', data);
+    console.log('📥 Received data:', data);
 
     if (data.success && data.fireDetected && Array.isArray(data.sources) && data.sources.length > 0) {
       const uniqueSources = [...new Set(data.sources.filter(s => s))];
-      console.log('🔥 检测到火情，来源:', uniqueSources);
+      console.log('🔥 Fire detected, sources:', uniqueSources);
 
-      // 更新报警状态（ref.value 是响应式的）
       fireAlert.value = {
         show: true,
         sources: uniqueSources
       };
     } else {
-      console.log('ℹ️ 未检测到火情或数据为空:', data);
+      console.log('ℹ️ No fire detected:', data);
     }
   } catch (error) {
-    console.error('❌ 检查火情事件失败:', error);
+    console.error('❌ Fire event check failed:', error);
   }
 }
 
@@ -70,8 +96,8 @@ function closeAlert() {
 }
 
 onMounted(() => {
-  checkFireEvents(); // 立即检查一次
-  pollingInterval = setInterval(checkFireEvents, 10000); // 每10秒轮询
+  checkFireEvents();
+  pollingInterval = setInterval(checkFireEvents, 10000);
 });
 
 onUnmounted(() => {
@@ -79,9 +105,6 @@ onUnmounted(() => {
     clearInterval(pollingInterval);
   }
 });
-
-
-
 </script>
 
 <style scoped>
@@ -90,7 +113,37 @@ onUnmounted(() => {
   padding: 20px;
 }
 
-/* 弹窗样式 - 居中显示 */
+/* Tab navigation */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.tab-btn {
+  padding: 10px 24px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  font-size: 15px;
+  color: #666;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tab-btn:hover {
+  color: #333;
+}
+
+.tab-btn.active {
+  color: #1976d2;
+  border-bottom-color: #1976d2;
+  font-weight: 600;
+}
+
+/* Alert modal */
 .alert-modal {
   position: fixed;
   top: 0;

@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import logging
+import threading
 from typing import Dict, Any
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -284,7 +285,7 @@ def create_file_processor(cfg: Dict[str, Any], services: Dict[str, Any]):
 
 
 # ------------------------------------------------------------------
-# RTSP处理回调 | RTSP processing callback
+# RTSP处理回调 | RTSP processing callback (legacy, kept for compatibility)
 # ------------------------------------------------------------------
 def create_rtsp_callback(services: Dict[str, Any], rtsp_id: str, detection_type: str = "parking_violation"):
     """创建RTSP回调函数"""
@@ -307,12 +308,48 @@ def create_rtsp_callback(services: Dict[str, Any], rtsp_id: str, detection_type:
 
 
 # ------------------------------------------------------------------
-# 启动RTSP源 | Start RTSP sources
+# StreamManager 创建 | Create StreamManager instance
 # ------------------------------------------------------------------
-def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any]):
-    """启动多路RTSP源"""
+def create_stream_manager(services: Dict[str, Any]):
+    """创建 StreamManager 实例"""
+    from backend.services.stream_manager import StreamManager
+
+    stream_manager = StreamManager(services=services, mongo_client=services["mongo"])
+    logger.info("✅ StreamManager created")
+    return stream_manager
+
+
+# ------------------------------------------------------------------
+# Flask API 服务器 | Flask API server (daemon thread)
+# ------------------------------------------------------------------
+def start_api_server(stream_manager, port: int = 5000):
+    """在守护线程中启动 Flask API 服务器"""
+    from flask import Flask
+    from flask_cors import CORS
+    from backend.api.stream_routes import stream_bp, init_stream_routes
+
+    app = Flask(__name__)
+    CORS(app)
+
+    init_stream_routes(stream_manager)
+    app.register_blueprint(stream_bp)
+
+    def _run():
+        logger.info(f"🌐 Flask API starting on port {port}...")
+        app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+
+    t = threading.Thread(target=_run, daemon=True, name="flask-api")
+    t.start()
+    logger.info(f"🌐 Flask API thread started (port {port})")
+    return t
+
+
+# ------------------------------------------------------------------
+# 启动RTSP源 (通过 StreamManager) | Start RTSP sources via StreamManager
+# ------------------------------------------------------------------
+def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any], stream_manager=None):
+    """启动多路RTSP源 - 优先使用 StreamManager，回退到旧逻辑"""
     rtsp_count = 0
-    rtsp_configs = []
 
     for idx, url_with_type in enumerate(cfg["rtsp_urls"]):
         if not url_with_type.strip():
@@ -320,51 +357,59 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any]):
 
         parts = url_with_type.strip().split("|")
         rtsp_url = parts[0].strip()
+
+        # New format: url|task1+task2  (e.g. rtsp://cam1|parking_violation+smoke_flame)
+        # Legacy format: url|single_type
         if len(parts) > 1:
-            detection_type = parts[1].strip()
+            type_str = parts[1].strip()
+            tasks = [t.strip() for t in type_str.split("+") if t.strip()]
         else:
-            detection_type = "parking_violation"
+            tasks = ["parking_violation"]
 
         valid_types = ["parking_violation", "smoke_flame", "common_space"]
-        if detection_type not in valid_types:
-            logger.warning(f"⚠️ Invalid detection type '{detection_type}' for RTSP {idx}, using default")
-            detection_type = "parking_violation"
+        tasks = [t for t in tasks if t in valid_types]
+        if not tasks:
+            logger.warning(f"⚠️ No valid tasks for RTSP {idx}, using default")
+            tasks = ["parking_violation"]
 
-        rtsp_configs.append({
-            "idx": idx,
-            "url": rtsp_url,
-            "detection_type": detection_type
-        })
+        # Use StreamManager if available
+        if stream_manager:
+            try:
+                stream_id = stream_manager.add_stream(rtsp_url, tasks)
+                rtsp_count += 1
+                logger.info(f"📹 RTSP source {idx} added via StreamManager: {rtsp_url} | Tasks: {tasks}")
+            except Exception as e:
+                logger.error(f"❌ Failed to add RTSP source {idx} via StreamManager: {e}")
+        else:
+            # Legacy fallback (single task per stream)
+            detection_type = tasks[0]
+            try:
+                from backend.utils.frame_capture import VideoFrameCapture
 
-    for config in rtsp_configs:
-        try:
-            from backend.utils.frame_capture import VideoFrameCapture
+                rtsp_id = f"rtsp_{idx}"
 
-            rtsp_id = f"rtsp_{config['idx']}"
-            detection_type = config["detection_type"]
+                if detection_type == "smoke_flame" and not services["smoke_service_ready"]:
+                    logger.warning(f"⚠️ Smoke/flame detection not ready for RTSP {idx}, skipping")
+                    continue
+                elif detection_type == "common_space" and not services["common_space_service_ready"]:
+                    logger.warning(f"⚠️ Common space analysis not ready for RTSP {idx}, skipping")
+                    continue
 
-            if detection_type == "smoke_flame" and not services["smoke_service_ready"]:
-                logger.warning(f"⚠️ Smoke/flame detection not ready for RTSP {config['idx']}, skipping")
-                continue
-            elif detection_type == "common_space" and not services["common_space_service_ready"]:
-                logger.warning(f"⚠️ Common space analysis not ready for RTSP {config['idx']}, skipping")
-                continue
+                cap = VideoFrameCapture()
+                cap.register_batch_callback(create_rtsp_callback(services, rtsp_id, detection_type))
+                cap.add_rtsp_source(
+                    source_id=rtsp_id,
+                    rtsp_url=rtsp_url,
+                    batch_size=8,
+                    batch_sec=1.0,
+                    reconnect_delay=5
+                )
 
-            cap = VideoFrameCapture()
-            cap.register_batch_callback(create_rtsp_callback(services, rtsp_id, detection_type))
-            cap.add_rtsp_source(
-                source_id=rtsp_id,
-                rtsp_url=config["url"],
-                batch_size=8,
-                batch_sec=1.0,
-                reconnect_delay=5
-            )
+                rtsp_count += 1
+                logger.info(f"📹 RTSP source {idx} added (legacy): {rtsp_url} | Type: {detection_type}")
 
-            rtsp_count += 1
-            logger.info(f"📹 RTSP source {config['idx']} added: {config['url']} | Type: {detection_type}")
-
-        except Exception as e:
-            logger.error(f"❌ Failed to add RTSP source {config['idx']}: {e}")
+            except Exception as e:
+                logger.error(f"❌ Failed to add RTSP source {idx}: {e}")
 
     return rtsp_count
 
@@ -393,13 +438,17 @@ def main():
                 logger.error("❌ Both multi-folder and single-folder monitoring failed")
                 return
 
-        # ----------- 4. 多路 RTSP（可选） -----------
-        rtsp_count = start_rtsp_sources(cfg, services)
+        # ----------- 4. StreamManager + Flask API -----------
+        stream_manager = create_stream_manager(services)
+        api_thread = start_api_server(stream_manager, port=5000)
+
+        # ----------- 5. 多路 RTSP（可选，通过 StreamManager） -----------
+        rtsp_count = start_rtsp_sources(cfg, services, stream_manager=stream_manager)
 
         if rtsp_count > 0:
             logger.info(f"✅ {rtsp_count} RTSP sources initialized")
 
-        # ----------- 5. 系统状态报告 -----------
+        # ----------- 6. 系统状态报告 -----------
         logger.info("📊 System Status:")
         logger.info(f"   📁 Upload folder: {cfg['upload_folder']}")
         logger.info(f"   🅿️ Parking detection: ✅ Ready")
@@ -410,8 +459,9 @@ def main():
             logger.info(f"   ⏱️ Common space interval: {cfg['common_space_interval_sec']}s")
         logger.info(f"   📹 RTSP sources: {rtsp_count}")
         logger.info(f"   ⏱️ Frame interval: {cfg['frame_interval_sec']}s")
+        logger.info(f"   🌐 Flask API: http://0.0.0.0:5000/api/streams")
 
-        # ----------- 6. 创建uploads目录结构 -----------
+        # ----------- 7. 创建uploads目录结构 -----------
         upload_folder = cfg["upload_folder"]
         os.makedirs(upload_folder, exist_ok=True)
 
@@ -423,7 +473,7 @@ def main():
             folder_path = os.path.join(upload_folder, folder_name)
             os.makedirs(folder_path, exist_ok=True)
 
-        # ----------- 7. 使用说明 -----------
+        # ----------- 8. 使用说明 -----------
         logger.info("📋 Usage Instructions:")
         logger.info("   1. Place videos for analysis in the following folders:")
         logger.info("      - 🅿️  uploads/parking/        : Parking violation detection")
@@ -433,7 +483,7 @@ def main():
         logger.info("   3. For common space analysis, frames are sampled every 30 seconds")
         logger.info("   4. Analysis results are saved to MinIO and MongoDB")
 
-        # ----------- 8. 主线程保活 -----------
+        # ----------- 9. 主线程保活 -----------
         logger.info("🎉 System started successfully! Press Ctrl+C to stop.")
 
         try:
@@ -441,6 +491,7 @@ def main():
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("👋 Shutting down...")
+            stream_manager.stop_all()
             observer.stop()
             observer.join()
 
