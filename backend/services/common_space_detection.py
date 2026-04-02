@@ -48,7 +48,7 @@ class CommonSpaceDetectionService:
     def set_sample_interval(self, interval_seconds: int):
         """Set sampling interval"""
         self.sample_interval = interval_seconds
-        logger.info(f"🔄 Set common space sampling interval to {interval_seconds} seconds")
+        logger.debug(f"🔄 Set common space sampling interval to {interval_seconds} seconds")
 
     def set_prompts(self, system_prompt: str = None, user_prompt: str = None):
         """Set prompts (support future customization)"""
@@ -56,7 +56,7 @@ class CommonSpaceDetectionService:
             self.system_prompt = system_prompt
         if user_prompt:
             self.user_prompt = user_prompt
-        logger.info("🔄 Updated Qwen-VL prompts for common space analysis")
+        logger.debug("🔄 Updated Qwen-VL prompts for common space analysis")
 
     # -------------------- Main Detection Pipeline --------------------
     def process_frame(self, frame_meta: FrameWithMetadata) -> None:
@@ -84,7 +84,7 @@ class CommonSpaceDetectionService:
         image = frame_meta.image
         timestamp = current_time
 
-        logger.info(f"🏢 Sampling frame for common space analysis: {source_id}")
+        logger.debug(f"🏢 Sampling frame for common space analysis: {source_id}")
 
         # 3. Async process analysis pipeline
         import threading
@@ -125,7 +125,7 @@ class CommonSpaceDetectionService:
                 logger.warning(f"⚠️ Qwen-VL analysis failed for {source_id}")
                 return
 
-            logger.info(f"✅ Qwen-VL analysis completed for {source_id}")
+            logger.debug(f"✅ Qwen-VL analysis completed for {source_id}")
 
             # 2. Create standardized event
             event_data = self._create_space_utilization_event(
@@ -476,7 +476,7 @@ class CommonSpaceDetectionService:
 
             # Clean URL
             clean_url = image_url.split('?')[0] if '?X-Amz-' in image_url else image_url
-            logger.info(f"📸 Common space analysis image URL: {clean_url}")
+            logger.debug("📸 Common space analysis image URL: {clean_url}")
 
             # 2. Pass analysis result as violations field
             violations = [{
@@ -497,8 +497,8 @@ class CommonSpaceDetectionService:
             )
 
             if ok:
-                logger.info(f"✅ Common space analysis event saved: {source_id}")
-                logger.info(f"   📋 Analysis summary: {event_data['summary']}")
+                logger.debug(f"✅ Common space analysis event saved: {source_id}")
+                logger.debug(f"📋 Analysis summary: {event_data['summary']}")
             else:
                 logger.error("❌ Failed to save common space analysis event to database")
 
@@ -507,8 +507,7 @@ class CommonSpaceDetectionService:
 
     def flush_remaining(self):
         """处理剩余帧（兼容性方法）| Process remaining frames (compatibility method)"""
-        logger.info("🔄 Common space detection - Flush remaining called")
-
+        logger.debug("🔄 Common space detection - Flush remaining called")
 
 # -------------------- Global Instance --------------------
 common_space_detection_service = CommonSpaceDetectionService()

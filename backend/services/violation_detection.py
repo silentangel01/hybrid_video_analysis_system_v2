@@ -1,6 +1,6 @@
 # backend/services/violation_detection.py
 """
-Violation Detection Service —— 官方示例逻辑（整帧批量）
+Violation Detection Service
 1. 整帧 YOLO 推理
 2. 批量过滤禁停区
 3. 一张渲染图 → 一次上传
@@ -20,6 +20,7 @@ import logging
 import cv2
 import numpy as np
 import time
+import threading
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,8 @@ class ViolationDetectionService:
         self.mongo_client = None
         self.model_loader = None
         self.zone_checker = None
+        # Ultralytics YOLO 对同一个模型实例的并发 predict 并不稳定，RTSP 多帧并发时需要串行化这一步。
+        self._inference_lock = threading.Lock()
 
     # -------------------- 依赖注入 --------------------
     def set_clients(self, minio_client: MinIOClient, mongo_client: MongoDBClient):
@@ -64,14 +67,14 @@ class ViolationDetectionService:
         source_id = frame_meta.source_id
         image = frame_meta.image
 
-        logger.info(f"🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍DEBUG: Backend source_id = '{source_id}' (type: {type(source_id)})")
+        logger.debug(f"🔍DEBUG: Backend source_id = '{source_id}' (type: {type(source_id)})")
 
         # 🔴 修复时间戳问题 - 使用当前系统时间
         current_timestamp = time.time()
         current_datetime = datetime.now()
 
-        logger.info(f"🕒 Frame timestamp - Original: {frame_meta.timestamp}, Corrected: {current_timestamp}")
-        logger.info(f"🕒 Frame datetime - {current_datetime}")
+        logger.debug(f"🕒 Frame timestamp - Original: {frame_meta.timestamp}, Corrected: {current_timestamp}")
+        logger.debug(f"🕒 Frame datetime - {current_datetime}")
 
         # 1. 推理 → 强制转 dict（只转一次）
         model = self.model_loader.get_model("vehicle")
@@ -79,29 +82,31 @@ class ViolationDetectionService:
             logger.error("❌ Vehicle model not loaded")
             return
 
-        raw_detections = YOLOInference.run_detection(model, image, conf_threshold=0.3)
+        # 串行化同一个 vehicle 模型实例的推理，避免并发导致模型内部 fuse/bn 状态异常
+        with self._inference_lock:
+            raw_detections = YOLOInference.run_detection(model, image, conf_threshold=0.3)
 
         detections: List[Dict[str, Any]] = [
             {"class_name": cls, "confidence": float(conf), "bbox": bbox}
             for cls, conf, bbox in raw_detections
         ]
-        logger.info(f"🔒 CONVERTED: {len(detections)} detections")
+        logger.debug(f"🔒 CONVERTED: {len(detections)} detections")
 
         if not detections:
-            logger.info("🟢 No objects detected.")
+            logger.debug("🟢 No objects detected.")
             return
 
         # 2. 过滤
-        logger.info(f"🔒 BEFORE filter: {len(detections)} detections")
+        logger.debug(f"🔒 BEFORE filter: {len(detections)} detections")
         violations = self.zone_checker.filter_violations_in_zones(detections, source_id)
 
         zones = self.zone_checker.get_zones_for_source(source_id)
         # ✅【DEBUG 3】打印关键状态
-        logger.info(f"🔍 DEBUG: Zones count = {len(zones)} | Violations count = {len(violations)}")
+        logger.debug(f"🔍 DEBUG: Zones count = {len(zones)} | Violations count = {len(violations)}")
         if zones:
-            logger.info(f"🔍 DEBUG: First zone example = {zones[0][:3]}...")  # 打印前3个点
+            logger.debug(f"🔍 DEBUG: First zone example = {zones[0][:3]}...")  # 打印前3个点
 
-        logger.info(f"🔒 AFTER filter: {len(violations)} violations")
+        logger.debug(f"🔒 AFTER filter: {len(violations)} violations")
 
         # 3. 一次性渲染 - 🔴 修复：传递所有检测目标和违规目标
         logger.debug(f"🖌️ Rendering {len(detections)} total detections, {len(violations)} violations")

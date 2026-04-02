@@ -1,11 +1,9 @@
 # backend/utils/visualization.py
 """
-Visualization Utilities —— 官方示例风格（整帧一次性渲染）
-提供：
+Visualization Utilities
   1. 批量绘制检测框
   2. 半透明填充 + 边缘描边禁停区
   3. 区分违规目标（红色）和非违规目标（绿色）
-所有函数支持「一张图一次调用」完成官方同款效果。
 """
 
 import cv2
@@ -33,7 +31,7 @@ def draw_detection_box(
         confidence: 置信度 0-1
         bbox: (x1, y1, x2, y2)
         color: BGR 颜色
-        is_violation: 是否为违规目标（影响标签文字）
+        is_violation: 是否为违规目标
 
     Returns:
         np.ndarray: 绘制后的图像（原地修改）
@@ -80,7 +78,7 @@ def draw_no_parking_zone(
         alpha: float = 0.3
 ) -> np.ndarray:
     """
-    半透明填充 + 边缘描边禁停区，官方示例风格
+    半透明填充 + 边缘描边禁停区
     Semi-transparent fill + edge line for no-parking zone.
 
     Parameters:
@@ -116,11 +114,9 @@ def render_official_frame(
         zones: Optional[List[List[Tuple[int, int]]]] = None
 ) -> np.ndarray:
     """
-    官方示例一次性渲染入口：
     1. 画所有禁停区
     2. 画所有检测框（绿色 - 正常，红色 - 违规）
     3. 显示统计信息
-    One-shot render entry for official style.
 
     Parameters:
         image: 原始帧

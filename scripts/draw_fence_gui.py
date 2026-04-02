@@ -1,7 +1,7 @@
-# scripts/draw_fence_gui.py (完整修改版)
+# scripts/draw_fence_gui.py
 """
 Interactive GUI Tool to Draw No-Parking Zones on Video Frames.
-TEST MODE: Supports auto-load video via CLI arg and "Finish & Exit" workflow.
+TEST MODE: Supports auto-load local video / RTSP source via CLI arg and "Finish & Exit" workflow.
 NEW FEATURE: Right-click to end drawing mode.
 """
 
@@ -16,12 +16,16 @@ from typing import List, Tuple
 import numpy as np
 from PIL import Image, ImageTk
 
-CONFIG_FILE = "no_parking_config.json"
-UPLOAD_FOLDER = "./uploads"
+# CONFIG_FILE = "no_parking_config.json"
+# UPLOAD_FOLDER = "./uploads"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+CONFIG_FILE = os.path.join(PROJECT_ROOT, "no_parking_config.json")
+UPLOAD_FOLDER = os.path.join(PROJECT_ROOT, "uploads")
 
 
 class FenceDrawingApp:
-    def __init__(self, root: tk.Tk, auto_load_video: str = None):
+    def __init__(self, root: tk.Tk, auto_load_source: str = None, zone_key: str = None):
         self.root = root
         self.root.title("🎨 Draw No-Parking Zone (TEST MODE)")
 
@@ -31,6 +35,7 @@ class FenceDrawingApp:
 
         # Image and drawing state
         self.video_path = None
+        self.zone_key = zone_key
         self.frame = None  # Original resolution frame (RGB)
         self.display_photo = None
         self.points: List[Tuple[int, int]] = []  # Points in ORIGINAL image coordinates
@@ -68,20 +73,25 @@ class FenceDrawingApp:
         self.canvas.bind("<Button-2>", self.on_right_click)  # Right click (macOS)
         self.canvas.bind("<Motion>", self.on_mouse_move)
 
-        # Auto-load video if provided (TEST MODE)
-        if auto_load_video and os.path.exists(auto_load_video):
-            self._auto_load_video(auto_load_video)
 
-    def _auto_load_video(self, path: str):
-        """Auto-load video in test mode"""
-        self.video_path = path
-        cap = cv2.VideoCapture(path)
+        #if auto_load_video and os.path.exists(auto_load_video):
+        #    self._auto_load_video(auto_load_video)
+
+        # Auto-load source if provided (TEST MODE)
+        # source can be a local video path or an RTSP URL
+        if auto_load_source:
+            self._auto_load_source(auto_load_source)
+
+    def _auto_load_source(self, source: str):
+        """Auto-load local video or RTSP source in test mode"""
+        self.video_path = source
+        cap = cv2.VideoCapture(source)
         ret, frame = cap.read()
         cap.release()
 
         if not ret:
-            messagebox.showerror("Error", f"Cannot read video: {path}")
-            self.status_label.config(text="❌ Failed to load auto-specified video", fg="red")
+            messagebox.showerror("Error", f"Cannot read source: {source}")
+            self.status_label.config(text="❌ Failed to load auto-specified source", fg="red")
             return
 
         # Convert BGR (OpenCV) to RGB (PIL/Tkinter)
@@ -100,15 +110,25 @@ class FenceDrawingApp:
         self.offset_x = (self.canvas_width - self.display_width) // 2
         self.offset_y = (self.canvas_height - self.display_height) // 2
 
-        video_name = os.path.basename(path)
+        # video_name = os.path.basename(path)
+        display_name = self.zone_key or os.path.basename(source) or source
+
         self.status_label.config(
-            text=f"🎯 AUTO-LOADED: {video_name} | Draw zone → Click 'Finish & Exit'",
+            text=f"🎯 AUTO-LOADED: {display_name} | Draw zone → Click 'Finish & Exit'",
             fg="purple",
             font=("Arial", 10, "bold")
         )
         self.auto_loaded = True
         self.display_frame()
         self.start_drawing()  # Auto-enable drawing mode
+
+    def _auto_load_video(self, source: str):
+        """
+        Backward-compatible alias.
+        Older code paths may still call _auto_load_video(); internally we now
+        treat local files and RTSP URLs uniformly as a generic source.
+        """
+        self._auto_load_source(source)
 
     def load_video(self):
         """Open file dialog to select video from uploads folder."""
@@ -250,20 +270,23 @@ class FenceDrawingApp:
             messagebox.showwarning("Warning", "At least 3 points are required to form a zone.")
             return
 
-        video_name = os.path.basename(self.video_path)
+        # video_name = os.path.basename(self.video_path)
+        video_name = self.zone_key or os.path.basename(self.video_path)
+
         config = {}
         if os.path.exists(CONFIG_FILE):
             try:
-                with open(CONFIG_FILE, 'r') as f:
+                # with open(CONFIG_FILE, 'r') as f:
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-            except:
+            except Exception:
                 config = {}
 
         config[video_name] = [[list(point) for point in self.points]]
 
         try:
-            with open(CONFIG_FILE, 'w') as f:
-                json.dump(config, f, indent=2)
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
             self.status_label.config(text=f"✅ Saved zone for {video_name} (still editing)", fg="green")
             messagebox.showinfo("Success", f"Saved {len(self.points)}-point zone for {video_name}")
         except Exception as e:
@@ -277,20 +300,21 @@ class FenceDrawingApp:
             return
 
         # Save zone
-        video_name = os.path.basename(self.video_path)
+        # video_name = os.path.basename(self.video_path)
+        video_name = self.zone_key or os.path.basename(self.video_path)
         config = {}
         if os.path.exists(CONFIG_FILE):
             try:
-                with open(CONFIG_FILE, 'r') as f:
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-            except:
+            except Exception:
                 config = {}
 
         config[video_name] = [[list(point) for point in self.points]]
 
         try:
-            with open(CONFIG_FILE, 'w') as f:
-                json.dump(config, f, indent=2)
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
             messagebox.showinfo("✅ Success", f"Zone saved for {video_name}!\nClosing GUI to resume processing...")
             self.root.quit()  # Exit cleanly
             sys.exit(0)  # Success exit code
@@ -309,15 +333,24 @@ class FenceDrawingApp:
 if __name__ == "__main__":
     # ===== TEST MODE: Support auto-load via CLI arg =====
     parser = argparse.ArgumentParser(description="Draw No-Parking Zone (Test Mode)")
-    parser.add_argument("--video", type=str, help="Path to video file to auto-load")
+    parser.add_argument("--source", type=str, help="Local video path or RTSP URL to auto-load")
+    parser.add_argument("--video", type=str, help="Backward-compatible alias of --source")
+    parser.add_argument("--zone-key", type=str, help="Config key used when saving the zone")
+    # parser.add_argument("--video", type=str, help="Path to video file to auto-load")
     parser.add_argument("--test-mode", action="store_true", help="Enable test mode behavior")
     args = parser.parse_args()
 
+    auto_source = args.source or args.video
+
     root = tk.Tk()
-    app = FenceDrawingApp(root, auto_load_video=args.video if args.video else None)
+    app = FenceDrawingApp(
+        root,
+        auto_load_source=auto_source,
+        zone_key=args.zone_key
+    )
 
     # Set window to stay on top in test mode (better UX)
-    if args.test_mode or args.video:
+    if args.test_mode or auto_source:
         root.attributes('-topmost', True)
         root.update()
         root.attributes('-topmost', False)

@@ -15,7 +15,12 @@ from typing import List, Tuple, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE = "no_parking_config.json"
+# CONFIG_FILE = "no_parking_config.json"
+
+SERVICE_DIR = os.path.dirname(os.path.abspath(__file__))
+BACKEND_DIR = os.path.dirname(SERVICE_DIR)
+PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
+CONFIG_FILE = os.path.join(PROJECT_ROOT, "no_parking_config.json")
 
 # 默认落库配置 | default fallback zones
 DEFAULT_ZONES: Dict[str, List[List[Tuple[int, int]]]] = {
@@ -33,6 +38,8 @@ def load_zones_from_file(config_path: str = CONFIG_FILE) -> Dict[str, List[List[
     总是返回 Dict[str, List[List[Tuple]]]，不会 None。
     Always return Dict[str, List[List[Tuple]]], never None.
     """
+    config_path = os.path.abspath(config_path)
+
     if not os.path.exists(config_path):
         logger.info(f"Config file '{config_path}' not found. Creating with default zones.")
         try:
@@ -71,7 +78,13 @@ def load_zones_from_file(config_path: str = CONFIG_FILE) -> Dict[str, List[List[
 # ------------------------------------------------------------------
 class NoParkingZoneChecker:
     def __init__(self, config_path: str = CONFIG_FILE):
-        self.zones = load_zones_from_file(config_path)
+        # self.zones = load_zones_from_file(config_path)
+
+        self.config_path = os.path.abspath(config_path)
+        self.zones = load_zones_from_file(self.config_path)
+        logger.info(
+            f"NoParkingZoneChecker loaded {len(self.zones)} zone key(s) from {self.config_path}"
+        )
 
     # ----------------------------------------------------------
     # 整帧过滤 —— 官方示例用法
@@ -92,7 +105,7 @@ class NoParkingZoneChecker:
         Returns:
             List[Dict]: 在禁停区内的违规项
         """
-        logger.info(f"🔍 ENTER: first 2 items = {violations[:2]}")
+        logger.debug(f"🔍 ENTER: first 2 items = {violations[:2]}")
         zones = self.get_zones_for_source(source_id)
         if not zones:
             logger.debug(f"No zone defined for {source_id}")
@@ -109,8 +122,8 @@ class NoParkingZoneChecker:
                 if cv2.pointPolygonTest(np.array(poly, dtype=np.float32), (cx, cy), False) >= 0:
                     valid.append(v)
                     break
-        logger.info(f"Zone check: {len(valid)}/{len(violations)} cars inside no-parking zone.")
-        logger.info(f"🔍 EXIT:  {len(valid)}/{len(violations)} items, first 2 = {valid[:2]}")
+        logger.debug(f"Zone check: {len(valid)}/{len(violations)} cars inside no-parking zone.")
+        logger.debug(f"🔍 EXIT:  {len(valid)}/{len(violations)} items, first 2 = {valid[:2]}")
         return valid
 
     # ----------------------------------------------------------
@@ -142,17 +155,17 @@ class NoParkingZoneChecker:
         """增强匹配：尝试原始ID、basename、无扩展名三种形式"""
         # 标准化：移除路径，保留扩展名（与GUI保存逻辑对齐）
         clean_key = os.path.basename(source_id)
-        logger.info(f"🔍 DEBUG: Requested source_id = '{source_id}'")
+        logger.debug(f"🔍 DEBUG: Requested source_id = '{source_id}'")
 
         # 优先匹配带扩展名的键（GUI保存格式）
         if clean_key in self.zones:
-            logger.info(f"✅ Matched config key (with ext): '{clean_key}'")
+            logger.debug(f"✅ Matched config key (with ext): '{clean_key}'")
             return self.zones[clean_key]
 
         # 备用：尝试无扩展名匹配
         no_ext_key = os.path.splitext(clean_key)[0]
         if no_ext_key in self.zones:
-            logger.info(f"✅ Matched config key (no ext): '{no_ext_key}'")
+            logger.debug(f"✅ Matched config key (no ext): '{no_ext_key}'")
             return self.zones[no_ext_key]
 
         logger.warning(

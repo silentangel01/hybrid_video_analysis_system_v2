@@ -70,10 +70,12 @@ class YOLOModelLoader:
                 logger.warning("Model has no 'names' attribute. Using default COCO 80-class mapping.")
                 self.model_names[model_name] = {i: f"class_{i}" for i in range(80)}
 
-            logger.info(f"[INFO] Model '{model_name}' loaded from {weight_path}")
+            logger.info(f"Model '{model_name}' loaded from {weight_path}")
             sample_classes = list(self.model_names[model_name].items())[:3]
-            logger.info(f"    ├─ Total classes: {len(self.model_names[model_name])}")
-            logger.info(f"    └─ Sample: {sample_classes}...")
+            # logger.info(f"    ├─ Total classes: {len(self.model_names[model_name])}")
+            # logger.info(f"    └─ Sample: {sample_classes}...")
+            logger.debug(f"    Total classes: {len(self.model_names[model_name])}")
+            logger.debug(f"    Sample: {sample_classes}...")
 
             return True
 

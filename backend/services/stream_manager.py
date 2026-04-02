@@ -10,13 +10,17 @@ Responsibilities:
 """
 
 import time
+import os
+import sys
 import logging
 import threading
+import subprocess
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
 from backend.utils.frame_capture import VideoFrameCapture
 from backend.services.task_dispatcher import TaskDispatcher
+from backend.services.parking_zone_checker import load_zones_from_file
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +30,7 @@ class StreamConfig:
     stream_id: str
     url: str
     tasks: List[str]
+    camera_id: str
     status: str = "connecting"  # running / stopped / error / connecting
     capture: Optional[VideoFrameCapture] = field(default=None, repr=False)
     created_at: float = field(default_factory=time.time)
@@ -36,8 +41,11 @@ class StreamManager:
 
     def __init__(self, services: Dict[str, Any], mongo_client):
         self.streams: Dict[str, StreamConfig] = {}
+        self.services = services
         self.dispatcher = TaskDispatcher(services)
         self.mongo = mongo_client
+        self.zone_checker = services["zone_checker"]
+        self.zone_config_path = getattr(self.zone_checker, "config_path", None)
         self._streams_col = mongo_client.db["streams"] if mongo_client is not None and mongo_client.db is not None else None
         self.lock = threading.Lock()
         self._counter = 0
@@ -46,11 +54,14 @@ class StreamManager:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def add_stream(self, url: str, tasks: List[str]) -> str:
+    def add_stream(self, url: str, tasks: List[str], camera_id: Optional[str] = None) -> str:
         """Add a new RTSP stream. Returns stream_id."""
         tasks = [t for t in tasks if t in self.VALID_TASKS]
         if not tasks:
             raise ValueError(f"No valid tasks provided. Choose from: {self.VALID_TASKS}")
+
+        if "parking_violation" in tasks and not camera_id:
+            raise ValueError("camera_id is required when tasks include parking_violation")
 
         with self.lock:
             self._counter += 1
@@ -64,17 +75,88 @@ class StreamManager:
             url=url,
             tasks=tasks,
             status="connecting",
+            camera_id=camera_id or stream_id,
             created_at=time.time(),
         )
 
-        self._start_capture(config)
+        # 关键：先检查 zone，没 zone 就先 GUI，成功后再启动正式 RTSP
+        if "parking_violation" in tasks:
+            self._ensure_zone_ready(config.camera_id, config.url)
 
         with self.lock:
             self.streams[stream_id] = config
 
+        try:
+            self._start_capture(config)
+        except Exception:
+            with self.lock:
+                self.streams.pop(stream_id, None)
+            raise
+
         self._persist_stream(config)
-        logger.info(f"[StreamManager] Added {stream_id}: {url} | tasks={tasks}")
+        logger.info(f"[StreamManager] Added {stream_id}: {url} | camera_id={config.camera_id} | tasks={tasks}")
         return stream_id
+
+    def _reload_zone_config(self):
+        """Reload zones from the same config file used by the shared zone_checker instance."""
+        if self.zone_config_path:
+            new_zones = load_zones_from_file(self.zone_config_path)
+        else:
+            new_zones = load_zones_from_file()
+
+        self.zone_checker.zones = new_zones
+
+        parking_service = self.services.get("parking_service")
+        if parking_service and getattr(parking_service, "zone_checker", None):
+            parking_service.zone_checker.zones = new_zones
+
+        logger.info(
+            f"[StreamManager] Reloaded {len(new_zones)} zone key(s) from "
+            f"{self.zone_config_path or 'default config path'}"
+        )
+        return new_zones
+
+    def _ensure_zone_ready(self, zone_key: str, rtsp_url: str):
+        # 每次注册前都先从磁盘刷新，避免内存里还是旧 zone
+        self._reload_zone_config()
+
+        zones = self.zone_checker.get_zones_for_source(zone_key)
+        if zones:
+            logger.info(f"[StreamManager] Zone already exists for camera_id={zone_key}")
+            return
+
+        logger.warning(f"[StreamManager] No zone for camera_id={zone_key}, launching GUI before stream starts")
+        self._launch_zone_gui(rtsp_url, zone_key)
+
+        # new_zones = load_zones_from_file()
+        # self.zone_checker.zones = new_zones
+        #
+        # parking_service = self.services.get("parking_service")
+        # if parking_service and getattr(parking_service, "zone_checker", None):
+        #     parking_service.zone_checker.zones = new_zones
+
+        # GUI 保存完成后再次刷新
+        self._reload_zone_config()
+
+        if not self.zone_checker.get_zones_for_source(zone_key):
+            raise ValueError(f"No zone saved for camera_id='{zone_key}', stream aborted")
+
+        logger.info(f"[StreamManager] Zone confirmed for camera_id={zone_key}, stream can start")
+
+    def _launch_zone_gui(self, rtsp_url: str, zone_key: str):
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        gui_script = os.path.join(project_root, "scripts", "draw_fence_gui.py")
+
+        cmd = [
+            sys.executable,
+            gui_script,
+            "--source", rtsp_url,
+            "--zone-key", zone_key,
+            "--test-mode"
+        ]
+
+        logger.info(f"[StreamManager] Launching GUI: {' '.join(cmd)}")
+        subprocess.run(cmd, check=True)
 
     def remove_stream(self, stream_id: str) -> bool:
         """Stop and remove a stream."""
@@ -125,6 +207,7 @@ class StreamManager:
                     "stream_id": cfg.stream_id,
                     "url": cfg.url,
                     "tasks": cfg.tasks,
+                    "camera_id": cfg.camera_id,
                     "status": cfg.status,
                     "created_at": cfg.created_at,
                 })
@@ -163,6 +246,9 @@ class StreamManager:
             if config is None:
                 return
             for frame in frames:
+                # 检测服务内部依赖 frame_meta.source_id 做禁停区匹配。
+                # 这里强制改成稳定的 camera_id，而不是动态的 stream_1/stream_2。
+                frame.source_id = config.camera_id
                 self.dispatcher.dispatch(stream_id, frame, config.tasks)
         return _on_frames
 
@@ -179,6 +265,7 @@ class StreamManager:
                     "stream_id": config.stream_id,
                     "url": config.url,
                     "tasks": config.tasks,
+                    "camera_id": config.camera_id,
                     "created_at": config.created_at,
                 }},
                 upsert=True,
@@ -207,6 +294,7 @@ class StreamManager:
                 sid = doc.get("stream_id", "")
                 url = doc.get("url", "")
                 tasks = doc.get("tasks", [])
+                camera_id = doc.get("camera_id", sid)
                 created = doc.get("created_at", time.time())
                 if not url or not tasks:
                     continue
@@ -215,10 +303,22 @@ class StreamManager:
                     stream_id=sid,
                     url=url,
                     tasks=tasks,
+                    camera_id=camera_id,
                     status="connecting",
                     created_at=created,
                 )
-                self._start_capture(config)
+                # self._start_capture(config)
+
+                try:
+                    if "parking_violation" in tasks:
+                        self._ensure_zone_ready(config.camera_id, config.url)
+                    # self._start_capture(config)
+                except Exception as e:
+                    logger.error(
+                        f"[StreamManager] Skip restoring {sid}: zone not ready or GUI failed: {e}"
+                    )
+                    continue
+
                 with self.lock:
                     self.streams[sid] = config
                     # Keep counter in sync
@@ -228,6 +328,17 @@ class StreamManager:
                             self._counter = idx
                     except ValueError:
                         pass
-                logger.info(f"[StreamManager] Restored {sid}: {url} | tasks={tasks}")
+
+                try:
+                    self._start_capture(config)
+                except Exception as e:
+                    with self.lock:
+                        self.streams.pop(sid, None)
+                    logger.error(f"[StreamManager] Failed to start restored stream {sid}: {e}")
+                    continue
+
+                logger.info(
+                    f"[StreamManager] Restored {sid}: {url} | camera_id={camera_id} | tasks={tasks}"
+                )
         except Exception as e:
             logger.error(f"[StreamManager] Restore failed: {e}")

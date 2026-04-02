@@ -66,7 +66,7 @@ def create_monitor_folders(base_folder: str):
     for folder_name in MONITOR_FOLDERS.keys():
         folder_path = os.path.join(base_folder, folder_name)
         os.makedirs(folder_path, exist_ok=True)
-        logger.info(f"📁 Created monitor folder: {folder_path}")
+        logger.debug(f"📁 Created monitor folder: {folder_path}")
 
 
 # -------------------- 多文件夹事件处理器 --------------------
@@ -127,7 +127,7 @@ class MultiFolderVideoHandler(FileSystemEventHandler):
         根据检测类型处理视频
         Process video based on detection type
         """
-        logger.info(f"🎬 Processing: {source_id} | Type: {detection_type}")
+        logger.debug(f"🎬 Processing: {source_id} | Type: {detection_type}")
 
         if detection_type == "parking_violation":
             self._process_parking_violation(video_path, source_id)
@@ -158,12 +158,12 @@ class MultiFolderVideoHandler(FileSystemEventHandler):
             ]
 
             try:
-                logger.info(f"🎨 LAUNCHING GUI: {' '.join(cmd)}")
+                logger.debug(f"🎨 LAUNCHING GUI: {' '.join(cmd)}")
                 # 阻塞等待GUI完成（用户点击"Finish & Exit"）
                 subprocess.run(cmd, check=True)
 
                 # 重新加载配置（覆盖整个 zones 字典）
-                logger.info(f"🔄 Reloading zone config from: {NO_PARKING_CONFIG_PATH}")
+                logger.debug(f"🔄 Reloading zone config from: {NO_PARKING_CONFIG_PATH}")
                 new_zones = load_zones_from_file(NO_PARKING_CONFIG_PATH)
 
                 # 更新 file_watcher 中的 zone_checker
@@ -173,7 +173,7 @@ class MultiFolderVideoHandler(FileSystemEventHandler):
                 if (hasattr(self.parking_detection_service, 'zone_checker') and
                         self.parking_detection_service.zone_checker):
                     self.parking_detection_service.zone_checker.zones = new_zones
-                    logger.info("✅ Synced zone_checker to detection_service")
+                    logger.debug("✅ Synced zone_checker to detection_service")
                 else:
                     logger.warning("⚠️ detection_service.zone_checker not found, may cause inconsistency")
 

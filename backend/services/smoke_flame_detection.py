@@ -65,7 +65,7 @@ class SmokeFlameDetectionService:
     def set_frame_skip(self, skip_frames: int):
         """Set frame skipping"""
         self.frame_skip = skip_frames
-        logger.info(f"🔄 Set frame skip to {skip_frames} frames")
+        logger.debug(f"🔄 Set frame skip to {skip_frames} frames")
 
     # -------------------- 主检测流程 --------------------
     def process_frame(self, frame_meta: FrameWithMetadata) -> None:
@@ -131,7 +131,7 @@ class SmokeFlameDetectionService:
             if not yolo_detections:
                 return {"source_id": source_id, "detections": [], "timestamp": timestamp, "frame_meta": frame_meta}
 
-            logger.info(f"🔥 YOLOv8 detected {len(yolo_detections)} potential smoke/flame regions in {source_id}")
+            logger.debug(f"🔥 YOLOv8 detected {len(yolo_detections)} potential smoke/flame regions in {source_id}")
 
             # 2. 对检测结果进行分组和筛选 | Group and filter detection results
             filtered_detections = self._filter_and_group_detections(yolo_detections, image.shape)
@@ -140,7 +140,7 @@ class SmokeFlameDetectionService:
                 logger.debug(f"🟡 No valid detections after filtering in {source_id}")
                 return {"source_id": source_id, "detections": [], "timestamp": timestamp, "frame_meta": frame_meta}
 
-            logger.info(f"🔍 After filtering: {len(filtered_detections)} regions for Qwen-VL verification")
+            logger.debug(f"🔍 After filtering: {len(filtered_detections)} regions for Qwen-VL verification")
 
             # 3. Qwen-VL API 验证 - 并行处理多个检测区域 | Qwen-VL API verification - parallel processing
             verified_detections = self._qwen_vl_verification_parallel(image, filtered_detections, source_id)
@@ -149,7 +149,7 @@ class SmokeFlameDetectionService:
                 logger.debug(f"🟡 Qwen-VL rejected all YOLOv8 detections in {source_id}")
                 return {"source_id": source_id, "detections": [], "timestamp": timestamp, "frame_meta": frame_meta}
 
-            logger.info(f"✅ Qwen-VL verified {len(verified_detections)} smoke/flame events in {source_id}")
+            logger.debug(f"✅ Qwen-VL verified {len(verified_detections)} smoke/flame events in {source_id}")
 
             return {
                 "source_id": source_id,
@@ -374,9 +374,9 @@ class SmokeFlameDetectionService:
                     verified_detection["confidence"] = (detection["confidence"] + 0.8) / 2
                     verified_detection["detection_stage"] = "qwen_verified"
                     verified_detections.append(verified_detection)
-                    logger.info(f"✅ Qwen-VL verified detection {original_index + 1}: {detection['class_name']}")
+                    logger.debug(f"✅ Qwen-VL verified detection {original_index + 1}: {detection['class_name']}")
                 else:
-                    logger.info(f"❌ Qwen-VL rejected detection {original_index + 1}: {detection['class_name']}")
+                    logger.debug(f"❌ Qwen-VL rejected detection {original_index + 1}: {detection['class_name']}")
             except Exception as e:
                 logger.error(f"❌ Verification failed for detection {original_index + 1}: {e}")
                 # 验证失败时保守处理：保留YOLO结果
@@ -508,7 +508,7 @@ class SmokeFlameDetectionService:
             )
 
             if ok:
-                logger.info(f"✅ Smoke/Flame events saved: {len(validated_detections)} detections")
+                logger.debug(f"✅ Smoke/Flame events saved: {len(validated_detections)} detections")
             else:
                 logger.error("❌ Failed to save smoke/flame events to database")
 
@@ -567,7 +567,7 @@ class SmokeFlameDetectionService:
 
     def flush_remaining(self):
         """处理剩余帧（兼容性方法）| Process remaining frames (compatibility method)"""
-        logger.info("🔄 Smoke/Flame detection - Flush remaining called")
+        logger.debug("🔄 Smoke/Flame detection - Flush remaining called")
         # 等待所有异步任务完成 | Wait for all async tasks to complete
         self.thread_pool.shutdown(wait=True)
 
@@ -833,10 +833,10 @@ class QwenVLAPIClient:
             word in cleaned_answer for word in ["否", "没有", "不存在", "未发现", "no", "false", "不是", "错误"])
 
         if chinese_yes and not chinese_no:
-            logger.info(f"✅ Qwen-VL confirmed: '{cleaned_answer}'")
+            logger.debug(f"✅ Qwen-VL confirmed: '{cleaned_answer}'")
             return True
         elif chinese_no and not chinese_yes:
-            logger.info(f"❌ Qwen-VL rejected: '{cleaned_answer}'")
+            logger.debug(f"❌ Qwen-VL rejected: '{cleaned_answer}'")
             return False
         else:
             # 模糊回答，保守处理为否定 | Ambiguous answer, conservatively treat as negative

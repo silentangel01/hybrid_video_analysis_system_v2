@@ -87,10 +87,10 @@ def initialize_services(cfg: Dict[str, Any]):
     smoke_service_ready = False
     qwen_vl_client = None
 
-    logger.info(f"🔍 Qwen-VL Config Check:")
-    logger.info(f"   Config API URL: {qwen_vl_api_config.get_api_url()}")
-    logger.info(f"   Config API Key configured: {bool(qwen_vl_api_config.get_api_key())}")
-    logger.info(f"   Config Overall configured: {qwen_vl_api_config.is_configured()}")
+    logger.debug(f"🔍 Qwen-VL Config Check:")
+    logger.debug(f"   Config API URL: {qwen_vl_api_config.get_api_url()}")
+    logger.debug(f"   Config API Key configured: {bool(qwen_vl_api_config.get_api_key())}")
+    logger.debug(f"   Config Overall configured: {qwen_vl_api_config.is_configured()}")
 
     if qwen_vl_api_config.is_configured():
         try:
@@ -163,7 +163,7 @@ def update_monitor_folders_config():
 
         if "common_space" not in MONITOR_FOLDERS:
             MONITOR_FOLDERS["common_space"] = "common_space"
-            logger.info("✅ Added common_space folder to MONITOR_FOLDERS configuration")
+            logger.debug("✅ Added common_space folder to MONITOR_FOLDERS configuration")
 
         return MONITOR_FOLDERS
     except Exception as e:
@@ -190,7 +190,7 @@ def start_multi_folder_monitoring(cfg: Dict[str, Any], services: Dict[str, Any])
         for folder_name in MONITOR_FOLDERS.keys():
             folder_path = os.path.join(upload_folder, folder_name)
             os.makedirs(folder_path, exist_ok=True)
-            logger.info(f"📁 Created/verified folder: {folder_path}")
+            logger.debug(f"📁 Created/verified folder: {folder_path}")
 
         # 【关键修复】传入同一个 zone_checker 实例
         observer = start_multi_folder_watchdog(
@@ -366,6 +366,8 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any], stream_man
         else:
             tasks = ["parking_violation"]
 
+        camera_id = parts[2].strip() if len(parts) > 2 else ""
+
         valid_types = ["parking_violation", "smoke_flame", "common_space"]
         tasks = [t for t in tasks if t in valid_types]
         if not tasks:
@@ -375,9 +377,16 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any], stream_man
         # Use StreamManager if available
         if stream_manager:
             try:
-                stream_id = stream_manager.add_stream(rtsp_url, tasks)
+                stream_id = stream_manager.add_stream(
+                    rtsp_url,
+                    tasks,
+                    camera_id=camera_id or None
+                )
                 rtsp_count += 1
-                logger.info(f"📹 RTSP source {idx} added via StreamManager: {rtsp_url} | Tasks: {tasks}")
+                logger.info(
+                    f"📴 RTSP source {idx} added via StreamManager: "
+                     f"{rtsp_url} | camera_id={camera_id or '-'} | Tasks: {tasks}"
+                )
             except Exception as e:
                 logger.error(f"❌ Failed to add RTSP source {idx} via StreamManager: {e}")
         else:
@@ -387,6 +396,7 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any], stream_man
                 from backend.utils.frame_capture import VideoFrameCapture
 
                 rtsp_id = f"rtsp_{idx}"
+                source_key = camera_id or rtsp_id
 
                 if detection_type == "smoke_flame" and not services["smoke_service_ready"]:
                     logger.warning(f"⚠️ Smoke/flame detection not ready for RTSP {idx}, skipping")
@@ -395,10 +405,19 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any], stream_man
                     logger.warning(f"⚠️ Common space analysis not ready for RTSP {idx}, skipping")
                     continue
 
+                if detection_type == "parking_violation" and camera_id:
+                    zones = services["zone_checker"].get_zones_for_source(camera_id)
+                    if not zones:
+                        logger.warning(
+                            f"⚠️ Legacy RTSP fallback mode found no zone for camera_id={camera_id}. "
+                            f"Please use StreamManager/API path for GUI-assisted setup."
+                        )
+                        continue
+
                 cap = VideoFrameCapture()
                 cap.register_batch_callback(create_rtsp_callback(services, rtsp_id, detection_type))
                 cap.add_rtsp_source(
-                    source_id=rtsp_id,
+                    source_id=source_key,
                     rtsp_url=rtsp_url,
                     batch_size=8,
                     batch_sec=1.0,

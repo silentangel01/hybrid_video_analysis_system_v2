@@ -65,7 +65,7 @@ class MongoDBClient:
                 event_dict["created_at"] = datetime.utcnow()
 
             self.collection.insert_one(event_dict)
-            logger.info(f"[MongoDB] Saved event: {event.event_type} from {event.camera_id}")
+            logger.debug(f"[MongoDB] Saved event: {event.event_type} from {event.camera_id}")
             logger.debug(f"[MongoDB] Event data: {event_dict.keys()}")
             return True
 
@@ -94,7 +94,7 @@ class MongoDBClient:
 
             # 批量插入
             result = self.collection.insert_many(event_dicts)
-            logger.info(f"[MongoDB] Saved {len(result.inserted_ids)} events")
+            logger.debug(f"[MongoDB] Saved {len(result.inserted_ids)} events")
             return True
 
         except Exception as e:
@@ -161,7 +161,7 @@ class MongoDBClient:
                     logger.debug(f"[MongoDB] Problematic document: {doc}")
                     continue
 
-            logger.info(f"[MongoDB] Retrieved {len(events)} events")
+            logger.debug(f"[MongoDB] Retrieved {len(events)} events")
             return events
 
         except Exception as e:
@@ -227,7 +227,7 @@ class MongoDBClient:
                 query["timestamp"] = {"$lt": before_timestamp}
 
             result = self.collection.delete_many(query)
-            logger.info(f"[MongoDB] Deleted {result.deleted_count} events")
+            logger.debug(f"[MongoDB] Deleted {result.deleted_count} events")
             return result.deleted_count
 
         except Exception as e:
@@ -282,7 +282,7 @@ class MongoDBClient:
         """关闭 MongoDB 连接"""
         if self.client:
             self.client.close()
-            logger.info("[MongoDB] Connection closed")
+            logger.debug("[MongoDB] Connection closed")
 
     def __enter__(self):
         """上下文管理器入口"""

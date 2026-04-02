@@ -181,12 +181,12 @@ def handle_event_detected(
         # 7. 落库
         success: bool = mongo_client.save_event(event)
         if success:
-            logger.info(f"✅ Event saved: {description[:50]}... from {camera_id}")
+            logger.debug(f"✅ Event saved: {description[:50]}... from {camera_id}")
 
             # 如果是公共空间分析，记录更多信息
             if event_type == "common_space_utilization" and analysis_result:
                 preview = analysis_result[:100] + "..." if len(analysis_result) > 100 else analysis_result
-                logger.info(f"   🤖 AI Analysis: {preview}")
+                logger.debug(f"   🤖 AI Analysis: {preview}")
         else:
             logger.error("❌ MongoDB save failed.")
 
@@ -231,7 +231,7 @@ def handle_frame_events(
         bool: 全部成功返回 True，任一失败返回 False
     """
     if not violations:
-        logger.info("🟢 No events to save")
+        logger.debug("🟢 No events to save")
         return True
 
     # 清理URL
@@ -330,7 +330,7 @@ def handle_frame_events(
             all_ok = False
 
     if all_ok:
-        logger.info(f"✅ Successfully saved all {saved_count} events")
+        logger.debug(f"✅ Successfully saved all {saved_count} events")
     else:
         logger.warning(f"⚠️ Saved {saved_count}/{len(violations)} events (some failed)")
 

@@ -1,6 +1,6 @@
 # backend/utils/frame_capture.py
 """
-Frame Capture Utility —— 官方示例风格（批量消费）
+Frame Capture Utility
 支持：
  1. RTSP 多路并发（线程）
  2. 本地视频文件（可循环）
@@ -29,10 +29,10 @@ class FrameWithMetadata:
     """Frame + context，供下游批量检测."""
     image: Any  # OpenCV 图像 (np.ndarray)
     source_id: str  # 源唯一标识
-    timestamp: float  # Unix 秒（带毫秒）- 🔴 修复：始终使用系统时间
+    timestamp: float  # Unix 秒（带毫秒）
     frame_index: int  # 本源内序号
     original_time_str: str  # 人类可读时间
-    is_rtsp: bool  # True=实时流，False=文件
+    is_rtsp: bool  # tag，True=实时流，False=文件
 
 
 # -------------------- 批量缓存器 --------------------
@@ -61,7 +61,6 @@ class FrameBuffer:
 # -------------------- 统一捕获管理器 --------------------
 class VideoFrameCapture:
     """
-    官方示例风格：
     每路源独立线程 → 帧缓存 → 批量回调 → 上游一次性推理
     """
 
@@ -132,7 +131,7 @@ class VideoFrameCapture:
         buffer = FrameBuffer(source_id, batch_size, batch_sec)
         frame_idx = 0
 
-        logger.info(f"[{source_id}] RTSP capture started: {url}")
+        logger.debug(f"[{source_id}] RTSP capture started: {url}")
 
         while self.running:
             cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
@@ -141,7 +140,7 @@ class VideoFrameCapture:
                 time.sleep(reconnect_delay)
                 continue
 
-            logger.info(f"[{source_id}] RTSP connected.")
+            logger.debug(f"[{source_id}] RTSP connected.")
             while self.running:
                 ret, frame = cap.read()
                 if not ret:
@@ -187,7 +186,7 @@ class VideoFrameCapture:
         """本地文件捕获 + 批量推送."""
         buffer = FrameBuffer(source_id, batch_size, batch_sec)
 
-        logger.info(f"[{source_id}] Local video capture started: {path}")
+        logger.debug(f"[{source_id}] Local video capture started: {path}")
 
         while self.running:
             cap = cv2.VideoCapture(path)
@@ -199,7 +198,7 @@ class VideoFrameCapture:
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             duration = total_frames / fps if fps > 0 else 0
 
-            logger.info(f"[{source_id}] Video info: FPS={fps:.1f}, Frames={total_frames}, Duration={duration:.1f}s")
+            logger.debug(f"[{source_id}] Video info: FPS={fps:.1f}, Frames={total_frames}, Duration={duration:.1f}s")
 
             frame_idx = 0
             start_system_time = time.time()  # 🔴 记录开始时的系统时间
@@ -248,13 +247,13 @@ class VideoFrameCapture:
             cap.release()
 
             # 调试：显示循环信息
-            logger.info(f"[{source_id}] Video finished at frame {frame_idx}")
+            logger.debug(f"[{source_id}] Video finished at frame {frame_idx}")
 
             if not loop_play:
-                logger.info(f"[{source_id}] Single play completed.")
+                logger.debug(f"[{source_id}] Single play completed.")
                 break
 
-            logger.info(f"[{source_id}] Local video looping...")
+            logger.debug(f"[{source_id}] Local video looping...")
             time.sleep(1)  # 循环间隔
 
     # -------------------- 时间戳调试方法 --------------------
@@ -267,10 +266,10 @@ class VideoFrameCapture:
         current_time = time.time()
         current_dt = datetime.now()
 
-        logger.info(f"=== 时间戳调试 [{source_id}] ===")
-        logger.info(f"当前系统时间: {current_dt}")
-        logger.info(f"当前Unix时间戳: {current_time}")
-        logger.info(f"转换为日期: {datetime.fromtimestamp(current_time)}")
+        logger.debug(f"=== 时间戳调试 [{source_id}] ===")
+        logger.debug(f"当前系统时间: {current_dt}")
+        logger.debug(f"当前Unix时间戳: {current_time}")
+        logger.debug(f"转换为日期: {datetime.fromtimestamp(current_time)}")
 
         # 检查是否是未来时间戳
         test_timestamp = 1761401166.298111  # 你的问题时间戳
@@ -278,7 +277,7 @@ class VideoFrameCapture:
             logger.warning(f"❌ 检测到未来时间戳: {test_timestamp}")
             logger.warning(f"❌ 对应日期: {datetime.fromtimestamp(test_timestamp)}")
         else:
-            logger.info(f"✅ 时间戳 {test_timestamp} 是过去时间")
+            logger.debug(f"✅ 时间戳 {test_timestamp} 是过去时间")
 
     # -------------------- 优雅停机 --------------------
     def stop_all(self):
@@ -287,8 +286,8 @@ class VideoFrameCapture:
         for tid, t in self.sources.items():
             if t.is_alive():
                 t.join(timeout=2.0)
-                logger.info(f"🛑 Stopped: {tid}")
-        logger.info("🛑 All capture threads stopped.")
+                logger.debug(f"🛑 Stopped: {tid}")
+        logger.debug("🛑 All capture threads stopped.")
 
     # -------------------- 状态检查 --------------------
     def get_source_status(self) -> Dict[str, str]:

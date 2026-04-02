@@ -107,13 +107,12 @@ class MinIOClient:
 
             # 🔴 修复时间戳问题 - 添加时间戳验证和调试信息
             current_time = datetime.now()
-            logger.info(f"🕒 MinIO Upload Debug:")
-            logger.info(f"   - Received timestamp: {timestamp}")
-            logger.info(f"   - Converted datetime: {datetime.fromtimestamp(timestamp)}")
-            logger.info(f"   - Current system time: {current_time}")
+            logger.debug(f"🕒 MinIO Upload Debug:")
+            logger.debug(f"   - Received timestamp: {timestamp}")
+            logger.debug(f"   - Converted datetime: {datetime.fromtimestamp(timestamp)}")
+            logger.debug(f"   - Current system time: {current_time}")
 
-            # 如果时间戳明显错误（比如是未来时间），使用当前时间
-            if timestamp > 2000000000:  # 2033年之后的都认为是错误时间戳
+            if timestamp > 2000000000:
                 logger.warning(f"⚠️ Suspicious future timestamp detected: {timestamp}")
                 logger.warning(f"⚠️ Using current system time instead")
                 timestamp = current_time.timestamp()
@@ -126,7 +125,7 @@ class MinIOClient:
             filename = f"event_{event_type}_{dt.strftime('%H%M%S')}_{ms:03d}.jpg"
             object_name = f"{camera_id}/{year}/{month}/{day}/{hour}/{filename}"
 
-            logger.info(f"📁 Object path: {object_name}")
+            logger.debug(f"📁 Object path: {object_name}")
 
             # Upload image
             self.client.put_object(
@@ -136,7 +135,7 @@ class MinIOClient:
                 length=len(img_bytes),
                 content_type="image/jpeg"
             )
-            logger.info(f"✅ [MinIO] Image uploaded: {object_name}")
+            logger.debug(f"✅ [MinIO] Image uploaded: {object_name}")
 
             # Generate public URL (no presigned needed since bucket is public)
             protocol = "https" if self.secure else "http"
@@ -171,7 +170,7 @@ class MinIOClient:
             else:
                 img_bytes = image_data
 
-            logger.info(f"🕒 Using datetime directly: {dt}")
+            logger.debug(f"🕒 Using datetime directly: {dt}")
 
             year, month, day, hour = dt.strftime("%Y %m %d %H").split()
             filename = f"event_{event_type}_{dt.strftime('%H%M%S')}.jpg"
@@ -185,7 +184,7 @@ class MinIOClient:
                 length=len(img_bytes),
                 content_type="image/jpeg"
             )
-            logger.info(f"✅ [MinIO] Image uploaded: {object_name}")
+            logger.debug(f"✅ [MinIO] Image uploaded: {object_name}")
 
             # Generate public URL
             protocol = "https" if self.secure else "http"

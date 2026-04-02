@@ -4,7 +4,7 @@ Flask Blueprint for RTSP stream management REST API.
 
 Endpoints:
   GET    /api/streams            - list all streams
-  POST   /api/streams            - add a stream  {url, tasks}
+  POST   /api/streams            - add a stream  {url, tasks, camera_id}
   DELETE /api/streams/<id>       - remove a stream
   PUT    /api/streams/<id>/tasks - update tasks   {tasks}
 """
@@ -49,6 +49,7 @@ def add_stream():
 
     url = data.get("url", "").strip()
     tasks = data.get("tasks", [])
+    camera_id = data.get("camera_id", "").strip()
 
     if not url:
         return jsonify({"error": "url is required"}), 400
@@ -56,12 +57,17 @@ def add_stream():
         return jsonify({"error": "tasks must be a non-empty list"}), 400
 
     try:
-        stream_id = _stream_manager.add_stream(url, tasks)
-        return jsonify({"stream_id": stream_id, "url": url, "tasks": tasks}), 201
+        stream_id = _stream_manager.add_stream(url, tasks, camera_id=camera_id or None)
+        return jsonify({
+            "stream_id": stream_id,
+            "url": url,
+            "tasks": tasks,
+            "camera_id": camera_id
+        }), 201
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
-        logger.error(f"[API] add_stream error: {e}")
+        logger.error(f"[API] add_stream error: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
 
