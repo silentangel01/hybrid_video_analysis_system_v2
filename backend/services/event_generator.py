@@ -19,9 +19,75 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
+def _infer_frame_event_type(
+        violations: List[Dict[str, Any]],
+        event_type_override: Optional[str] = None,
+        zones: Optional[List[List[tuple]]] = None
+) -> str:
+    """Infer a single frame-level event type from aggregated detections."""
+    if event_type_override:
+        return event_type_override
+
+    raw_types: List[str] = []
+    for item in violations:
+        item_type = item.get("event_type") or item.get("class_name")
+        if item_type:
+            raw_types.append(str(item_type).lower())
+
+    unique_types = set(raw_types)
+
+    if zones:
+        return "parking_violation"
+
+    if unique_types and unique_types.issubset({"smoke", "fire", "flame", "smoke_flame"}):
+        return "smoke_flame"
+
+    if len(unique_types) == 1:
+        return unique_types.pop()
+
+    return "unknown"
+
+
+def _build_aggregate_objects(violations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Keep compact per-object details inside one frame-level event."""
+    objects: List[Dict[str, Any]] = []
+
+    for item in violations:
+        obj: Dict[str, Any] = {}
+
+        if item.get("class_name") is not None:
+            obj["class_name"] = item["class_name"]
+        if item.get("event_type") is not None:
+            obj["event_type"] = item["event_type"]
+        if item.get("confidence") is not None:
+            try:
+                obj["confidence"] = float(item["confidence"])
+            except (ValueError, TypeError):
+                obj["confidence"] = 0.0
+        if item.get("bbox") is not None:
+            obj["bbox"] = item["bbox"]
+        if item.get("detection_stage") is not None:
+            obj["detection_stage"] = item["detection_stage"]
+
+        objects.append(obj)
+
+    return objects
+
+
+def _build_count_by_class(violations: List[Dict[str, Any]]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for item in violations:
+        key = item.get("class_name") or item.get("event_type") or "unknown"
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 # ------------------------------------------------------------------
-# ① 单目标落库 | Save single-target event（修复bbox字段问题）
+# LEGACY: old per-object event saving implementation
+# Kept as a non-executable reference while the aggregated frame-event
+# implementation below remains the only active implementation.
 # ------------------------------------------------------------------
+LEGACY_SINGLE_TARGET_IMPLEMENTATION = r'''
 def handle_event_detected(
         minio_client: MinIOClient,
         mongo_client: MongoDBClient,
@@ -38,7 +104,9 @@ def handle_event_detected(
         # ✅ 新增：公共空间分析相关字段
         analysis_result: Optional[str] = None,
         analysis_summary: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        object_count: Optional[int] = None,
+        objects: Optional[List[Dict[str, Any]]] = None
 ) -> bool:
     """
     将单个事件的元数据写入 MongoDB。
@@ -195,11 +263,15 @@ def handle_event_detected(
     except Exception as e:
         logger.error(f"[Event Generator] Unexpected error: {e}", exc_info=True)
         return False
+'''
 
 
 # ------------------------------------------------------------------
-# ② 整帧批量落库 | Batch save whole-frame events
+# LEGACY: old per-object batch save implementation
+# Kept as a non-executable reference while the aggregated frame-event
+# implementation below remains the only active implementation.
 # ------------------------------------------------------------------
+LEGACY_BATCH_EVENT_IMPLEMENTATION = r'''
 def handle_frame_events(
         minio_client: MinIOClient,
         mongo_client: MongoDBClient,
@@ -335,6 +407,7 @@ def handle_frame_events(
         logger.warning(f"⚠️ Saved {saved_count}/{len(violations)} events (some failed)")
 
     return all_ok
+'''
 
 
 # ------------------------------------------------------------------
@@ -491,8 +564,259 @@ def handle_parking_violation_events(
 
 
 # ------------------------------------------------------------------
-# ⑥ 事件查询辅助函数 | Event query helper functions
+# ⑥ 当前生效实现 | Active aggregated frame-event implementation
 # ------------------------------------------------------------------
+def handle_event_detected(
+        minio_client: MinIOClient,
+        mongo_client: MongoDBClient,
+        image_url: str,
+        camera_id: str,
+        timestamp: float,
+        event_type: str,
+        confidence: float = 0.0,
+        bbox: Optional[Tuple[int, int, int, int]] = None,
+        frame_index: Optional[int] = None,
+        description: Optional[str] = None,
+        zone_polygon: Optional[List[Tuple[int, int]]] = None,
+        detection_stage: Optional[str] = None,
+        analysis_result: Optional[str] = None,
+        analysis_summary: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        object_count: Optional[int] = None,
+        objects: Optional[List[Dict[str, Any]]] = None
+) -> bool:
+    """Persist a single event metadata document into MongoDB."""
+    _ = minio_client
+
+    try:
+        clean_image_url = image_url.split('?')[0] if '?X-Amz-' in image_url else image_url
+
+        if not clean_image_url:
+            logger.warning("Image URL is empty; event will be saved without visual evidence.")
+
+        try:
+            confidence_float = float(confidence)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid confidence value: {confidence}, using 0.0")
+            confidence_float = 0.0
+
+        if description is None:
+            if event_type == "common_space_utilization":
+                if analysis_summary:
+                    people_count = analysis_summary.get("estimated_people_count", 0)
+                    occupancy = analysis_summary.get("space_occupancy", "unknown")
+                    activities = analysis_summary.get("activity_types", [])
+                    safety = analysis_summary.get("safety_concerns", False)
+
+                    description_parts = [f"Public space analysis: {people_count} people"]
+                    if occupancy != "unknown":
+                        description_parts.append(f"{occupancy} occupancy")
+                    if activities and activities != ["unknown"]:
+                        activity_text = ", ".join(activities[:3])
+                        if len(activities) > 3:
+                            activity_text += f" and {len(activities) - 3} more"
+                        description_parts.append(f"activities: {activity_text}")
+                    if safety:
+                        description_parts.append("safety concerns identified")
+                    description = ", ".join(description_parts)
+                elif analysis_result:
+                    period_idx = analysis_result.find(".")
+                    comma_idx = analysis_result.find(",")
+                    if period_idx > 0 and period_idx < 100:
+                        description = analysis_result[:period_idx + 1]
+                    elif comma_idx > 0 and comma_idx < 100:
+                        description = analysis_result[:comma_idx] + "..."
+                    else:
+                        description = analysis_result[:120] + "..." if len(analysis_result) > 120 else analysis_result
+                else:
+                    description = "Public space utilization analyzed"
+            elif event_type.lower() in ["smoke", "fire", "flame", "smoke_flame"]:
+                stage_info = f" ({detection_stage})" if detection_stage else ""
+                if object_count and object_count > 1:
+                    description = (
+                        f"Smoke/flame detected in {object_count} regions"
+                        f"{stage_info} (max_conf={confidence_float:.2f})"
+                    )
+                else:
+                    label = "Smoke/flame" if event_type.lower() == "smoke_flame" else event_type.title()
+                    description = f"{label} detected{stage_info} (conf={confidence_float:.2f})"
+            elif event_type == "parking_violation":
+                if object_count and object_count > 1:
+                    description = (
+                        f"{object_count} vehicles in no-parking zone "
+                        f"(max_conf={confidence_float:.2f})"
+                    )
+                else:
+                    description = f"Vehicle in no-parking zone (conf={confidence_float:.2f})"
+            else:
+                description = f"{event_type.title()} detected (conf={confidence_float:.2f})"
+
+        event_data = {
+            "camera_id": camera_id,
+            "timestamp": timestamp,
+            "event_type": event_type,
+            "confidence": confidence_float,
+            "image_url": clean_image_url,
+            "description": description,
+            "processed_at": datetime.now()
+        }
+
+        if bbox is not None:
+            event_data["bbox"] = bbox
+        if object_count is not None:
+            event_data["object_count"] = object_count
+        if objects is not None:
+            event_data["objects"] = objects
+        if frame_index is not None:
+            event_data["frame_index"] = frame_index
+        if detection_stage is not None:
+            event_data["detection_stage"] = detection_stage
+        if zone_polygon is not None:
+            event_data["zone_polygon"] = zone_polygon
+        if analysis_result is not None:
+            event_data["analysis_result"] = analysis_result
+        if analysis_summary is not None:
+            event_data["analysis_summary"] = analysis_summary
+        if metadata is not None:
+            event_data["metadata"] = metadata
+
+        try:
+            event = EventModel(**event_data)
+        except Exception as e:
+            logger.error(f"EventModel validation error: {e}")
+            logger.error(f"   Event data: {event_data}")
+            return False
+
+        success: bool = mongo_client.save_event(event)
+        if success:
+            logger.debug(f"Event saved: {description[:50]}... from {camera_id}")
+            if event_type == "common_space_utilization" and analysis_result:
+                preview = analysis_result[:100] + "..." if len(analysis_result) > 100 else analysis_result
+                logger.debug(f"AI Analysis: {preview}")
+        else:
+            logger.error("MongoDB save failed.")
+
+        return success
+    except Exception as e:
+        logger.error(f"[Event Generator] Unexpected error: {e}", exc_info=True)
+        return False
+
+
+def handle_frame_events(
+        minio_client: MinIOClient,
+        mongo_client: MongoDBClient,
+        image_url: str,
+        camera_id: str,
+        timestamp: float,
+        frame_index: int,
+        violations: List[Dict[str, Any]],
+        zones: Optional[List[List[tuple]]] = None,
+        event_type_override: Optional[str] = None
+) -> bool:
+    """Save one aggregated event for one frame."""
+    if not violations:
+        logger.debug("No events to save")
+        return True
+
+    clean_image_url = image_url.split('?')[0] if '?X-Amz-' in image_url else image_url
+    current_event_type = _infer_frame_event_type(
+        violations=violations,
+        event_type_override=event_type_override,
+        zones=zones
+    )
+
+    # LEGACY:
+    # The old implementation looped over each violation and wrote one document
+    # per object. This override writes one aggregated event per frame per task.
+
+    if current_event_type == "common_space_utilization":
+        violation = violations[0]
+        metadata = violation.get("metadata", {}) or {}
+        metadata["processing_time"] = time.time()
+        metadata["source"] = "common_space_analysis"
+
+        return handle_event_detected(
+            minio_client=minio_client,
+            mongo_client=mongo_client,
+            image_url=clean_image_url,
+            camera_id=camera_id,
+            timestamp=timestamp,
+            event_type=current_event_type,
+            confidence=violation.get("confidence", 1.0),
+            bbox=violation.get("bbox"),
+            frame_index=frame_index,
+            description=None,
+            zone_polygon=None,
+            detection_stage=violation.get("detection_stage"),
+            analysis_result=violation.get("analysis_result"),
+            analysis_summary=violation.get("analysis_summary"),
+            metadata=metadata
+        )
+
+    objects = _build_aggregate_objects(violations)
+    object_count = len(objects)
+    count_by_class = _build_count_by_class(violations)
+
+    primary_violation = max(
+        violations,
+        key=lambda item: float(item.get("confidence", 0.0))
+    )
+    confidence = float(primary_violation.get("confidence", 0.0))
+    bbox = primary_violation.get("bbox")
+    detection_stage = primary_violation.get("detection_stage")
+
+    metadata: Dict[str, Any] = {
+        "object_classes": sorted(count_by_class.keys()),
+        "object_count_by_class": count_by_class,
+    }
+
+    zone_polygon = None
+    if zones and bbox and current_event_type == "parking_violation":
+        metadata["zone_count"] = len(zones)
+        try:
+            from backend.utils.bbox_utils import is_point_in_polygon
+
+            if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+                center_x = (bbox[0] + bbox[2]) // 2
+                center_y = (bbox[1] + bbox[3]) // 2
+
+                for zone in zones:
+                    if is_point_in_polygon((center_x, center_y), zone):
+                        zone_polygon = zone
+                        break
+        except ImportError:
+            logger.warning("bbox_utils module not available, skipping zone detection")
+
+    ok = handle_event_detected(
+        minio_client=minio_client,
+        mongo_client=mongo_client,
+        image_url=clean_image_url,
+        camera_id=camera_id,
+        timestamp=timestamp,
+        event_type=current_event_type,
+        confidence=confidence,
+        bbox=bbox,
+        frame_index=frame_index,
+        description=None,
+        zone_polygon=zone_polygon,
+        detection_stage=detection_stage,
+        metadata=metadata,
+        object_count=object_count,
+        objects=objects
+    )
+
+    if ok:
+        logger.debug(
+            f"Saved aggregated frame event: type={current_event_type}, object_count={object_count}"
+        )
+    else:
+        logger.error(
+            f"Failed to save aggregated frame event: type={current_event_type}, object_count={object_count}"
+        )
+
+    return ok
+
+
 def get_event_type_description(event_type: str) -> str:
     """
     获取事件类型的描述

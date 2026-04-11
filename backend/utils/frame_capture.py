@@ -1,43 +1,48 @@
+# -*- coding: utf-8 -*-
 # backend/utils/frame_capture.py
 """
-Frame Capture Utility
-支持：
- 1. RTSP 多路并发（线程）
- 2. 本地视频文件（可循环）
- 3. 帧采样（时间间隔 or 帧跳过）
- 4. 批量回调 → 上游一次性推理（官方同款）
- 5. 无自动存图，仅推送 FrameWithMetadata 列表
+Frame capture utilities.
+
+Features:
+  1. Multi-stream RTSP capture with one thread per source
+  2. Local video file capture with optional looping
+  3. Frame sampling and batch delivery
+  4. Batched callback handoff to downstream detection services
+  5. Performance counters for capture diagnostics
 """
 
 import cv2
 import time
 import logging
 import threading
-import queue
 import os
 from typing import List, Optional, Callable, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
+from urllib.parse import urlparse
+
+from backend.utils.performance_metrics import SlidingCounter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# -------------------- 数据载体 --------------------
+# -------------------- Data Container --------------------
 @dataclass
 class FrameWithMetadata:
-    """Frame + context，供下游批量检测."""
-    image: Any  # OpenCV 图像 (np.ndarray)
-    source_id: str  # 源唯一标识
-    timestamp: float  # Unix 秒（带毫秒）
-    frame_index: int  # 本源内序号
-    original_time_str: str  # 人类可读时间
-    is_rtsp: bool  # tag，True=实时流，False=文件
+    """Frame payload plus source metadata for downstream processing."""
+
+    image: Any
+    source_id: str
+    timestamp: float
+    frame_index: int
+    original_time_str: str
+    is_rtsp: bool
 
 
-# -------------------- 批量缓存器 --------------------
+# -------------------- Batch Buffer --------------------
 class FrameBuffer:
-    """缓存指定时长/数量的帧，然后一次性推给上游."""
+    """Buffer frames and flush them as a batch by size or time window."""
 
     def __init__(self, source_id: str, batch_size: int = 1, batch_sec: float = 1.0):
         self.source_id = source_id
@@ -47,7 +52,7 @@ class FrameBuffer:
         self.last_push = time.time()
 
     def add(self, frame: FrameWithMetadata) -> Optional[List[FrameWithMetadata]]:
-        """添加帧；满足条件时返回整批，否则 None."""
+        """Add a frame and return a batch when the flush condition is met."""
         self.buffer.append(frame)
         meet_size = len(self.buffer) >= self.batch_size
         meet_time = (frame.timestamp - self.last_push) >= self.batch_sec
@@ -58,139 +63,290 @@ class FrameBuffer:
         return None
 
 
-# -------------------- 统一捕获管理器 --------------------
+# -------------------- Unified Capture Manager --------------------
 class VideoFrameCapture:
-    """
-    每路源独立线程 → 帧缓存 → 批量回调 → 上游一次性推理
-    """
+    """One thread per source plus buffered batch delivery to a callback."""
 
     def __init__(self):
         self.sources: Dict[str, threading.Thread] = {}
+        self.source_details: Dict[str, Dict[str, Any]] = {}
+        self.source_perf: Dict[str, Dict[str, Any]] = {}
+        self.state_lock = threading.Lock()
         self.running = True
-        # 回调函数：batch_callback(source_id, frame_list)
+        # Callback signature: batch_callback(source_id, frame_list)
         self._callback: Optional[Callable[[str, List[FrameWithMetadata]], None]] = None
 
     def register_batch_callback(self, callback: Callable[[str, List[FrameWithMetadata]], None]):
-        """注册批量回调，官方示例一次性推理入口."""
+        """Register the batched callback used by downstream detectors."""
         self._callback = callback
 
-    # -------------------- 添加源 --------------------
+    # -------------------- Source Registration --------------------
+    def _set_source_detail(self, source_id: str, **updates):
+        with self.state_lock:
+            detail = self.source_details.setdefault(source_id, {})
+            detail.update(updates)
+
+    def _get_source_detail(self, source_id: str) -> Dict[str, Any]:
+        with self.state_lock:
+            return dict(self.source_details.get(source_id, {}))
+
+    def _build_rtsp_open_error(self, url: str) -> str:
+        parsed = urlparse(url)
+        path = parsed.path.lstrip("/") or "<empty>"
+        base = f"Failed to open RTSP source: {url}."
+        hints = [
+            "Verify the RTSP URL and path are correct.",
+            "Make sure the publisher is already pushing before the detector subscribes.",
+        ]
+        if "localhost:8554" in url or "127.0.0.1:8554" in url:
+            hints.append(
+                f"If you are using MediaMTX, a DESCRIBE 404 usually means there is no published stream on path '{path}' yet."
+            )
+            hints.append(
+                f"Wait until the RTSP server reports that a publisher is actively publishing to '{path}', then retry."
+            )
+        return " ".join([base] + hints)
+
+    def _init_source_perf(self, source_id: str):
+        with self.state_lock:
+            if source_id in self.source_perf:
+                return
+            self.source_perf[source_id] = {
+                "read_counter": SlidingCounter(window_sec=10.0),
+                "emit_counter": SlidingCounter(window_sec=10.0),
+                "batch_counter": SlidingCounter(window_sec=10.0),
+                "open_failures_total": 0,
+                "disconnect_count": 0,
+                "consecutive_open_failures": 0,
+                "last_batch_size": 0,
+            }
+
+    def _with_source_perf(self, source_id: str) -> Dict[str, Any]:
+        with self.state_lock:
+            return self.source_perf[source_id]
+
+    def _increment_source_perf(self, source_id: str, key: str, delta: int = 1):
+        with self.state_lock:
+            perf = self.source_perf.get(source_id)
+            if perf is None:
+                return
+            perf[key] = int(perf.get(key, 0)) + delta
+
+    def _set_source_perf_value(self, source_id: str, key: str, value: Any):
+        with self.state_lock:
+            perf = self.source_perf.get(source_id)
+            if perf is None:
+                return
+            perf[key] = value
+
+    def _get_source_perf_snapshot(self, source_id: str) -> Dict[str, Any]:
+        with self.state_lock:
+            perf = self.source_perf.get(source_id)
+        if perf is None:
+            return {}
+
+        read_snapshot = perf["read_counter"].snapshot()
+        emit_snapshot = perf["emit_counter"].snapshot()
+        batch_snapshot = perf["batch_counter"].snapshot()
+
+        return {
+            "frames_read_total": read_snapshot["total"],
+            "frames_emitted_total": emit_snapshot["total"],
+            "batches_emitted_total": batch_snapshot["total"],
+            "capture_fps_10s": read_snapshot["rate_per_sec"],
+            "emit_fps_10s": emit_snapshot["rate_per_sec"],
+            "batch_rate_10s": batch_snapshot["rate_per_sec"],
+            "open_failures_total": perf["open_failures_total"],
+            "disconnect_count": perf["disconnect_count"],
+            "consecutive_open_failures": perf["consecutive_open_failures"],
+            "last_batch_size": perf["last_batch_size"],
+        }
+
     def add_rtsp_source(
-            self,
-            source_id: str,
-            rtsp_url: str,
-            batch_size: int = 1,
-            batch_sec: float = 1.0,
-            reconnect_delay: int = 5
+        self,
+        source_id: str,
+        rtsp_url: str,
+        batch_size: int = 1,
+        batch_sec: float = 1.0,
+        reconnect_delay: int = 5,
     ):
-        """添加 RTSP 源，支持批量推送."""
+        """Add an RTSP source and start its capture thread."""
         if source_id in self.sources:
             logger.warning(f"[{source_id}] Already exists.")
             return
+        self._init_source_perf(source_id)
+        self._set_source_detail(
+            source_id,
+            kind="rtsp",
+            url=rtsp_url,
+            status="connecting",
+            last_error=None,
+            retry_count=0,
+            last_connected_at=None,
+            last_frame_at=None,
+        )
         thread = threading.Thread(
             target=self._rtsp_loop,
             args=(source_id, rtsp_url, batch_size, batch_sec, reconnect_delay),
-            daemon=True
+            daemon=True,
         )
         self.sources[source_id] = thread
         thread.start()
 
     def add_local_video_source(
-            self,
-            source_id: str,
-            video_path: str,
-            batch_size: int = 1,
-            batch_sec: float = 1.0,
-            loop_play: bool = True
+        self,
+        source_id: str,
+        video_path: str,
+        batch_size: int = 1,
+        batch_sec: float = 1.0,
+        loop_play: bool = True,
     ):
-        """添加本地视频文件源，支持批量推送."""
+        """Add a local video source and start its capture thread."""
         if not os.path.exists(video_path):
             logger.error(f"[{source_id}] File not found: {video_path}")
             return
         if source_id in self.sources:
             logger.warning(f"[{source_id}] Already exists.")
             return
+        self._init_source_perf(source_id)
+        self._set_source_detail(
+            source_id,
+            kind="local",
+            url=video_path,
+            status="connecting",
+            last_error=None,
+            retry_count=0,
+            last_connected_at=None,
+            last_frame_at=None,
+        )
         thread = threading.Thread(
             target=self._local_loop,
             args=(source_id, video_path, batch_size, batch_sec, loop_play),
-            daemon=True
+            daemon=True,
         )
         self.sources[source_id] = thread
         thread.start()
 
-    # -------------------- RTSP 线程 --------------------
+    # -------------------- RTSP Thread --------------------
     def _rtsp_loop(
-            self,
-            source_id: str,
-            url: str,
-            batch_size: int,
-            batch_sec: float,
-            reconnect_delay: int
+        self,
+        source_id: str,
+        url: str,
+        batch_size: int,
+        batch_sec: float,
+        reconnect_delay: int,
     ):
-        """RTSP 捕获 + 批量推送."""
+        """Capture RTSP frames and emit them in batches."""
         buffer = FrameBuffer(source_id, batch_size, batch_sec)
+        perf = self._with_source_perf(source_id)
         frame_idx = 0
 
         logger.debug(f"[{source_id}] RTSP capture started: {url}")
 
         while self.running:
+            self._set_source_detail(source_id, status="connecting")
             cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
             if not cap.isOpened():
-                logger.error(f"[{source_id}] RTSP open failed, retry in {reconnect_delay}s")
+                detail = self._get_source_detail(source_id)
+                retry_count = int(detail.get("retry_count", 0)) + 1
+                error_message = self._build_rtsp_open_error(url)
+                self._increment_source_perf(source_id, "open_failures_total")
+                self._increment_source_perf(source_id, "consecutive_open_failures")
+                self._set_source_detail(
+                    source_id,
+                    status="reconnecting",
+                    last_error=error_message,
+                    retry_count=retry_count,
+                )
+                logger.error(f"[{source_id}] {error_message} Retry in {reconnect_delay}s")
                 time.sleep(reconnect_delay)
                 continue
 
+            self._set_source_detail(
+                source_id,
+                status="running",
+                last_error=None,
+                retry_count=0,
+                last_connected_at=time.time(),
+            )
+            self._set_source_perf_value(source_id, "consecutive_open_failures", 0)
             logger.debug(f"[{source_id}] RTSP connected.")
+
             while self.running:
                 ret, frame = cap.read()
                 if not ret:
                     break
                 frame_idx += 1
+                perf["read_counter"].add()
 
-                # 🔴 修复：RTSP 使用当前系统时间，而不是视频时间戳
+                # RTSP streams should use the current wall-clock time.
                 current_time = time.time()
                 current_dt = datetime.fromtimestamp(current_time)
 
                 meta = FrameWithMetadata(
                     image=frame,
                     source_id=source_id,
-                    timestamp=current_time,  # 🔴 使用当前系统时间
+                    timestamp=current_time,
                     frame_index=frame_idx,
                     original_time_str=current_dt.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
-                    is_rtsp=True
+                    is_rtsp=True,
                 )
 
-                # 调试日志：显示时间戳信息
-                if frame_idx % 30 == 1:  # 每30帧记录一次
-                    logger.debug(f"[{source_id}] Frame {frame_idx} - "
-                                 f"System time: {current_dt} | "
-                                 f"Timestamp: {current_time}")
+                # Emit a lightweight debug sample every 30 frames.
+                if frame_idx % 30 == 1:
+                    logger.debug(
+                        f"[{source_id}] Frame {frame_idx} - "
+                        f"System time: {current_dt} | "
+                        f"Timestamp: {current_time}"
+                    )
 
                 batch = buffer.add(meta)
+                self._set_source_detail(
+                    source_id,
+                    status="running",
+                    last_error=None,
+                    last_frame_at=current_time,
+                )
                 if batch and self._callback:
+                    perf["emit_counter"].add(len(batch))
+                    perf["batch_counter"].add()
+                    self._set_source_perf_value(source_id, "last_batch_size", len(batch))
                     self._callback(source_id, batch)
 
             cap.release()
+            self._increment_source_perf(source_id, "disconnect_count")
+            self._set_source_detail(
+                source_id,
+                status="reconnecting",
+                last_error="RTSP stream disconnected; waiting to reconnect.",
+            )
             logger.warning(f"[{source_id}] RTSP disconnected, reconnecting...")
             time.sleep(reconnect_delay)
 
-    # -------------------- 本地文件线程 --------------------
+    # -------------------- Local File Thread --------------------
     def _local_loop(
-            self,
-            source_id: str,
-            path: str,
-            batch_size: int,
-            batch_sec: float,
-            loop_play: bool
+        self,
+        source_id: str,
+        path: str,
+        batch_size: int,
+        batch_sec: float,
+        loop_play: bool,
     ):
-        """本地文件捕获 + 批量推送."""
+        """Capture frames from a local video file and emit them in batches."""
         buffer = FrameBuffer(source_id, batch_size, batch_sec)
+        perf = self._with_source_perf(source_id)
 
         logger.debug(f"[{source_id}] Local video capture started: {path}")
 
         while self.running:
+            self._set_source_detail(source_id, status="connecting")
             cap = cv2.VideoCapture(path)
             if not cap.isOpened():
+                self._set_source_detail(
+                    source_id,
+                    status="error",
+                    last_error=f"Cannot open local file: {path}",
+                )
                 logger.error(f"[{source_id}] Cannot open file: {path}")
                 return
 
@@ -198,67 +354,83 @@ class VideoFrameCapture:
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             duration = total_frames / fps if fps > 0 else 0
 
-            logger.debug(f"[{source_id}] Video info: FPS={fps:.1f}, Frames={total_frames}, Duration={duration:.1f}s")
+            logger.debug(
+                f"[{source_id}] Video info: FPS={fps:.1f}, Frames={total_frames}, Duration={duration:.1f}s"
+            )
 
             frame_idx = 0
-            start_system_time = time.time()  # 🔴 记录开始时的系统时间
+            start_system_time = time.time()
 
             while self.running and cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
                 frame_idx += 1
+                perf["read_counter"].add()
 
-                # 🔴 修复：本地视频使用相对时间 + 系统基准时间
+                # Local files use playback offset plus a wall-clock base.
                 video_pos_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
 
-                # 方法1：使用系统时间作为基准（推荐）
+                # Option 1: use a fixed wall-clock base plus playback offset.
                 current_system_time = start_system_time + video_pos_sec
                 current_dt = datetime.fromtimestamp(current_system_time)
 
-                # 方法2：或者直接使用当前系统时间（更简单）
+                # Option 2: use the current system time directly.
                 # current_system_time = time.time()
                 # current_dt = datetime.now()
 
                 meta = FrameWithMetadata(
                     image=frame,
                     source_id=source_id,
-                    timestamp=current_system_time,  # 🔴 使用系统相关时间
+                    timestamp=current_system_time,
                     frame_index=frame_idx,
                     original_time_str=current_dt.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
-                    is_rtsp=False
+                    is_rtsp=False,
                 )
 
-                # 调试日志：显示时间戳信息
-                if frame_idx % 100 == 1:  # 每100帧记录一次
-                    logger.debug(f"[{source_id}] Frame {frame_idx}/{total_frames} - "
-                                 f"Video time: {video_pos_sec:.1f}s - "
-                                 f"System time: {current_dt} | "
-                                 f"Timestamp: {current_system_time}")
+                # Emit a lightweight debug sample every 100 frames.
+                if frame_idx % 100 == 1:
+                    logger.debug(
+                        f"[{source_id}] Frame {frame_idx}/{total_frames} - "
+                        f"Video time: {video_pos_sec:.1f}s - "
+                        f"System time: {current_dt} | "
+                        f"Timestamp: {current_system_time}"
+                    )
 
                 batch = buffer.add(meta)
+                self._set_source_detail(
+                    source_id,
+                    status="running",
+                    last_error=None,
+                    last_frame_at=current_system_time,
+                )
                 if batch and self._callback:
+                    perf["emit_counter"].add(len(batch))
+                    perf["batch_counter"].add()
+                    self._set_source_perf_value(source_id, "last_batch_size", len(batch))
                     self._callback(source_id, batch)
 
-                # 模拟实时播放速度（如果不需要实时，可以注释掉）
+                # Simulate near-real-time playback for very small batch windows.
                 if batch_sec <= 0.1:
                     time.sleep(1.0 / fps)
 
             cap.release()
 
-            # 调试：显示循环信息
+            # Debug marker for file loop restarts.
             logger.debug(f"[{source_id}] Video finished at frame {frame_idx}")
 
             if not loop_play:
+                self._set_source_detail(source_id, status="stopped", last_error=None)
                 logger.debug(f"[{source_id}] Single play completed.")
                 break
 
+            self._set_source_detail(source_id, status="connecting")
             logger.debug(f"[{source_id}] Local video looping...")
-            time.sleep(1)  # 循环间隔
+            time.sleep(1)
 
-    # -------------------- 时间戳调试方法 --------------------
+    # -------------------- Timestamp Debug Helper --------------------
     def debug_timestamp_issue(self, source_id: str):
-        """调试特定源的时间戳问题"""
+        """Print timestamp diagnostics for a specific source."""
         if source_id not in self.sources:
             logger.error(f"[{source_id}] Source not found for debugging")
             return
@@ -266,86 +438,104 @@ class VideoFrameCapture:
         current_time = time.time()
         current_dt = datetime.now()
 
-        logger.debug(f"=== 时间戳调试 [{source_id}] ===")
-        logger.debug(f"当前系统时间: {current_dt}")
-        logger.debug(f"当前Unix时间戳: {current_time}")
-        logger.debug(f"转换为日期: {datetime.fromtimestamp(current_time)}")
+        logger.debug(f"=== Timestamp debug [{source_id}] ===")
+        logger.debug(f"Current system time: {current_dt}")
+        logger.debug(f"Current Unix timestamp: {current_time}")
+        logger.debug(f"As datetime: {datetime.fromtimestamp(current_time)}")
 
-        # 检查是否是未来时间戳
-        test_timestamp = 1761401166.298111  # 你的问题时间戳
+        # Example timestamp used to compare against the current clock.
+        test_timestamp = 1761401166.298111
         if test_timestamp > current_time:
-            logger.warning(f"❌ 检测到未来时间戳: {test_timestamp}")
-            logger.warning(f"❌ 对应日期: {datetime.fromtimestamp(test_timestamp)}")
+            logger.warning(f"Detected a future timestamp: {test_timestamp}")
+            logger.warning(f"Corresponding datetime: {datetime.fromtimestamp(test_timestamp)}")
         else:
-            logger.debug(f"✅ 时间戳 {test_timestamp} 是过去时间")
+            logger.debug(f"Timestamp {test_timestamp} is not in the future")
 
-    # -------------------- 优雅停机 --------------------
+    # -------------------- Graceful Shutdown --------------------
     def stop_all(self):
-        """停止所有捕获线程."""
+        """Stop all capture threads."""
         self.running = False
-        for tid, t in self.sources.items():
-            if t.is_alive():
-                t.join(timeout=2.0)
-                logger.debug(f"🛑 Stopped: {tid}")
-        logger.debug("🛑 All capture threads stopped.")
+        for tid, thread in self.sources.items():
+            if thread.is_alive():
+                thread.join(timeout=2.0)
+                self._set_source_detail(tid, status="stopped")
+                logger.debug(f"Stopped: {tid}")
+        logger.debug("All capture threads stopped.")
 
-    # -------------------- 状态检查 --------------------
+    # -------------------- Status Inspection --------------------
     def get_source_status(self) -> Dict[str, str]:
-        """获取所有源的状态"""
+        """Return the status of all registered sources."""
         status = {}
         for source_id, thread in self.sources.items():
-            status[source_id] = "alive" if thread.is_alive() else "dead"
+            detail = self._get_source_detail(source_id)
+            if not thread.is_alive():
+                status[source_id] = "stopped"
+            else:
+                status[source_id] = detail.get("status", "connecting")
         return status
 
+    def get_source_details(self) -> Dict[str, Dict[str, Any]]:
+        """Return detailed capture and performance state for all sources."""
+        details = {}
+        for source_id, thread in self.sources.items():
+            detail = self._get_source_detail(source_id)
+            detail.update(self._get_source_perf_snapshot(source_id))
+            detail["thread_alive"] = thread.is_alive()
+            if not thread.is_alive():
+                detail["status"] = "stopped"
+            details[source_id] = detail
+        return details
 
-# -------------------- 快速测试 --------------------
+
+# -------------------- Quick Demo --------------------
 if __name__ == "__main__":
     def demo_batch_callback(src_id: str, frames: List[FrameWithMetadata]):
-        """示例：批量打印，可替换为 DetectionService.process_batch(frames)"""
+        """Example callback; can be replaced by a detection batch handler."""
         if frames:
             first_frame = frames[0]
             last_frame = frames[-1]
             time_span = last_frame.timestamp - first_frame.timestamp
 
-            logger.info(f"📦 Batch from {src_id}: {len(frames)} frames, "
-                        f"time span {time_span:.2f}s, "
-                        f"first: {datetime.fromtimestamp(first_frame.timestamp)}, "
-                        f"last: {datetime.fromtimestamp(last_frame.timestamp)}")
-
+            logger.info(
+                f"Batch from {src_id}: {len(frames)} frames, "
+                f"time span {time_span:.2f}s, "
+                f"first: {datetime.fromtimestamp(first_frame.timestamp)}, "
+                f"last: {datetime.fromtimestamp(last_frame.timestamp)}"
+            )
 
     cap = VideoFrameCapture()
     cap.register_batch_callback(demo_batch_callback)
 
-    # 本地演示视频（循环）
+    # Demo local video in loop mode.
     test_video_path = "./sample_videos/fire_test.mp4"
     if os.path.exists(test_video_path):
         cap.add_local_video_source(
             source_id="demo_video",
             video_path=test_video_path,
-            batch_size=8,  # 一次 8 帧
-            batch_sec=1.0,  # 或 1 秒
-            loop_play=True
+            batch_size=8,
+            batch_sec=1.0,
+            loop_play=True,
         )
     else:
         logger.warning(f"Test video not found: {test_video_path}")
-        # 使用默认摄像头测试
+        # Fall back to the default camera path for testing.
         logger.info("Using default camera for testing...")
         cap.add_rtsp_source(
             source_id="demo_camera",
-            rtsp_url="0",  # 默认摄像头
+            rtsp_url="0",
             batch_size=4,
-            batch_sec=0.5
+            batch_sec=0.5,
         )
 
     try:
-        # 运行一段时间后检查状态
+        # Wait briefly and inspect status once.
         time.sleep(5)
         status = cap.get_source_status()
-        logger.info(f"📊 Source status: {status}")
+        logger.info(f"Source status: {status}")
 
-        # 持续运行
+        # Keep running until interrupted.
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        logger.info("🛑 Stopping capture...")
+        logger.info("Stopping capture...")
         cap.stop_all()

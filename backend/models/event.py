@@ -45,6 +45,12 @@ class EventModel(BaseModel):
     # 单个边界框 (x1, y1, x2, y2) - ✅ 修复：改为可选字段
     # Single bounding box (top-left x, top-left y, bottom-right x, bottom-right y) - ✅ FIXED: Changed to optional
 
+    object_count: Optional[int] = None
+    # 同一帧内聚合到该事件中的目标数量
+
+    objects: Optional[List[Dict[str, Any]]] = None
+    # 同一帧内聚合的目标明细列表
+
     frame_index: Optional[int] = None
     # 事件在视频流中的帧号，便于回溯
     # Frame number in the stream for quick rewind

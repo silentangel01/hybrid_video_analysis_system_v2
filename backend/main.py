@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------
-# 配置加载 | Load config
+# Config loading
 # ------------------------------------------------------------------
 def load_config() -> Dict[str, Any]:
-    """从环境变量读取配置，带默认值."""
+    """Load configuration from environment variables with defaults."""
     return {
         "minio_endpoint": os.getenv("MINIO_ENDPOINT", "localhost:9000"),
         "minio_access_key": os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
@@ -38,12 +38,12 @@ def load_config() -> Dict[str, Any]:
 
 
 # ------------------------------------------------------------------
-# 服务初始化 | Service initialization
+# Service initialization
 # ------------------------------------------------------------------
 def initialize_services(cfg: Dict[str, Any]):
-    """初始化所有服务 | Initialize all services"""
+    """Initialize all shared services."""
 
-    # ----------- 1. 存储客户端 -----------
+    # ----------- 1. Storage clients -----------
     from storage.minio_client import MinIOClient
     from storage.mongodb_client import MongoDBClient
 
@@ -55,39 +55,43 @@ def initialize_services(cfg: Dict[str, Any]):
     )
     mongo = MongoDBClient(mongo_uri=cfg["mongo_uri"], db_name=cfg["mongo_db_name"])
 
-    # ----------- 2. 模型 & 检查器 -----------
+    # ----------- 2. Models and checkers -----------
     from ml_models.yolov8.model_loader import YOLOModelLoader
     from backend.services.parking_zone_checker import NoParkingZoneChecker
+    from backend.services.stream_runtime import AppResources, StreamRuntimeFactory
 
     loader = YOLOModelLoader()
     loader.load_model("vehicle", "yolov8n.pt")
     try:
         loader.load_model("smoke_flame", "smoke_flame.pt")
-        logger.info("✅ Smoke/Flame model loaded")
+        logger.info("Smoke/Flame model loaded")
     except Exception as e:
-        logger.warning(f"⚠️ Smoke/Flame model not available: {e}")
+        logger.warning(f"Smoke/Flame model not available: {e}")
 
-    # 【关键修复】创建唯一的 zone_checker 实例
+    # Keep one shared zone_checker instance for the whole process.
     zone_checker = NoParkingZoneChecker()
-    logger.info(f"✅ Created single zone_checker instance (ID: {id(zone_checker)}) with zones: {list(zone_checker.zones.keys())}")
+    logger.info(
+        f"Created single zone_checker instance (ID: {id(zone_checker)}) "
+        f"with zones: {list(zone_checker.zones.keys())}"
+    )
 
-    # ----------- 3. 检测服务 -----------
+    # ----------- 3. Detection services -----------
     from backend.services.violation_detection import detection_service as parking_service
     from backend.services.smoke_flame_detection import smoke_flame_detection_service, QwenVLAPIClient
     from backend.services.common_space_detection import common_space_detection_service
     from backend.config.qwen_vl_config import qwen_vl_api_config
 
-    # 【关键修复】电子围栏检测服务 - 注入同一个 zone_checker 实例
+    # Inject the shared zone_checker instance into the parking service.
     parking_service.set_clients(minio_client=minio, mongo_client=mongo)
     parking_service.set_model_loader(loader)
-    parking_service.set_zone_checker(zone_checker)  # ← 关键：注入实例
-    logger.info("✅ Parking violation detection service ready.")
+    parking_service.set_zone_checker(zone_checker)
+    logger.info("Parking violation detection service ready.")
 
-    # 烟火检测服务
+    # Smoke/flame detection service
     smoke_service_ready = False
     qwen_vl_client = None
 
-    logger.debug(f"🔍 Qwen-VL Config Check:")
+    logger.debug("Qwen-VL config check:")
     logger.debug(f"   Config API URL: {qwen_vl_api_config.get_api_url()}")
     logger.debug(f"   Config API Key configured: {bool(qwen_vl_api_config.get_api_key())}")
     logger.debug(f"   Config Overall configured: {qwen_vl_api_config.is_configured()}")
@@ -103,9 +107,9 @@ def initialize_services(cfg: Dict[str, Any]):
             smoke_flame_detection_service.set_model_loader(loader)
             smoke_flame_detection_service.set_qwen_vl_client(qwen_vl_client)
             smoke_service_ready = True
-            logger.info("✅ Smoke/Flame detection service ready (using config file).")
+            logger.info("Smoke/Flame detection service ready (using config file).")
         except Exception as e:
-            logger.error(f"❌ Failed to initialize smoke/flame detection with config file: {e}")
+            logger.error(f"Failed to initialize smoke/flame detection with config file: {e}")
     elif cfg["qwen_vl_api_url"] and cfg["qwen_vl_api_key"]:
         try:
             qwen_vl_client = QwenVLAPIClient(
@@ -117,14 +121,16 @@ def initialize_services(cfg: Dict[str, Any]):
             smoke_flame_detection_service.set_model_loader(loader)
             smoke_flame_detection_service.set_qwen_vl_client(qwen_vl_client)
             smoke_service_ready = True
-            logger.info("✅ Smoke/Flame detection service ready (using environment variables).")
+            logger.info("Smoke/Flame detection service ready (using environment variables).")
         except Exception as e:
-            logger.error(f"❌ Failed to initialize smoke/flame detection with environment variables: {e}")
+            logger.error(f"Failed to initialize smoke/flame detection with environment variables: {e}")
     else:
         logger.warning(
-            "⚠️ Qwen-VL API not configured in both config file and environment variables, smoke/flame detection disabled")
+            "Qwen-VL API is not configured in either the config file or environment variables; "
+            "smoke/flame detection is disabled"
+        )
 
-    # 公共空间分析服务
+    # Common space analysis service
     common_space_service_ready = False
     if qwen_vl_client:
         try:
@@ -133,144 +139,158 @@ def initialize_services(cfg: Dict[str, Any]):
             common_space_detection_service.set_sample_interval(cfg["common_space_interval_sec"])
             common_space_service_ready = True
             logger.info(
-                f"✅ Common space analysis service ready (sampling interval: {cfg['common_space_interval_sec']}s).")
+                f"Common space analysis service ready "
+                f"(sampling interval: {cfg['common_space_interval_sec']}s)."
+            )
         except Exception as e:
-            logger.error(f"❌ Failed to initialize common space analysis service: {e}")
+            logger.error(f"Failed to initialize common space analysis service: {e}")
     else:
-        logger.warning("⚠️ Qwen-VL client not available, common space analysis service disabled")
+        logger.warning("Qwen-VL client not available; common space analysis service disabled")
+
+    app_resources = AppResources(
+        minio=minio,
+        mongo=mongo,
+        zone_checker=zone_checker,
+        qwen_vl_client=qwen_vl_client,
+        smoke_service_ready=smoke_service_ready,
+        common_space_service_ready=common_space_service_ready,
+        common_space_interval_sec=cfg["common_space_interval_sec"],
+        weights_dir=loader.weights_dir,
+    )
+    stream_runtime_factory = StreamRuntimeFactory(app_resources)
 
     return {
         "minio": minio,
         "mongo": mongo,
         "loader": loader,
-        "zone_checker": zone_checker,  # ← 返回同一个实例
+        "zone_checker": zone_checker,  # shared instance
         "parking_service": parking_service,
         "smoke_service": smoke_flame_detection_service,
         "common_space_service": common_space_detection_service,
         "qwen_vl_client": qwen_vl_client,
         "smoke_service_ready": smoke_service_ready,
-        "common_space_service_ready": common_space_service_ready
+        "common_space_service_ready": common_space_service_ready,
+        "app_resources": app_resources,
+        "stream_runtime_factory": stream_runtime_factory,
     }
 
 
 # ------------------------------------------------------------------
-# 更新多文件夹监控配置 | Update multi-folder monitoring configuration
+# Update multi-folder monitoring configuration
 # ------------------------------------------------------------------
 def update_monitor_folders_config():
-    """更新监控文件夹配置以包含公共空间分析"""
+    """Ensure the monitoring config includes the common_space folder."""
     try:
         from scripts.file_watcher import MONITOR_FOLDERS
 
         if "common_space" not in MONITOR_FOLDERS:
             MONITOR_FOLDERS["common_space"] = "common_space"
-            logger.debug("✅ Added common_space folder to MONITOR_FOLDERS configuration")
+            logger.debug("Added common_space folder to MONITOR_FOLDERS configuration")
 
         return MONITOR_FOLDERS
     except Exception as e:
-        logger.error(f"❌ Failed to update monitor folders config: {e}")
+        logger.error(f"Failed to update monitor folders config: {e}")
         return None
 
 
 # ------------------------------------------------------------------
-# 多文件夹监控启动 | Multi-folder monitoring startup
+# Multi-folder monitoring startup
 # ------------------------------------------------------------------
 def start_multi_folder_monitoring(cfg: Dict[str, Any], services: Dict[str, Any]) -> bool:
-    """
-    尝试启动多文件夹监控（确保传入同一个 zone_checker 实例）
-    """
+    """Start multi-folder monitoring with the shared zone_checker instance."""
     try:
         from scripts.file_watcher import start_multi_folder_watchdog
 
         MONITOR_FOLDERS = update_monitor_folders_config()
         if not MONITOR_FOLDERS:
-            logger.error("❌ Failed to get monitor folders configuration")
+            logger.error("Failed to get monitor folders configuration")
             return None
 
         upload_folder = cfg["upload_folder"]
         for folder_name in MONITOR_FOLDERS.keys():
             folder_path = os.path.join(upload_folder, folder_name)
             os.makedirs(folder_path, exist_ok=True)
-            logger.debug(f"📁 Created/verified folder: {folder_path}")
+            logger.debug(f"Created/verified folder: {folder_path}")
 
-        # 【关键修复】传入同一个 zone_checker 实例
+        # Pass the shared zone_checker instance through.
         observer = start_multi_folder_watchdog(
             base_folder=cfg["upload_folder"],
             model_loader=services["loader"],
             parking_detection_service=services["parking_service"],
             smoke_flame_detection_service=services["smoke_service"],
-            zone_checker=services["zone_checker"],  # ← 关键：同一个实例
+            zone_checker=services["zone_checker"],
             frame_interval=cfg["frame_interval_sec"]
         )
 
-        logger.info("🎯 Multi-folder monitoring started successfully!")
-        logger.info("📂 Folder structure:")
+        logger.info("Multi-folder monitoring started successfully")
+        logger.info("Folder structure:")
         logger.info("   uploads/")
-        logger.info("   ├── 🅿️ parking/        - 电子围栏检测视频")
-        logger.info("   ├── 🔥 smoke_flame/    - 烟火检测视频")
-        logger.info("   └── 🏢 common_space/   - 公共空间分析视频")
+        logger.info("   - parking/      : parking_violation videos")
+        logger.info("   - smoke_flame/  : smoke_flame videos")
+        logger.info("   - common_space/ : common_space videos")
 
         if not services["smoke_service_ready"]:
-            logger.warning("   ⚠️ 烟火检测服务未就绪，请检查Qwen-VL配置")
+            logger.warning("   Smoke/Flame detection service is not ready; check Qwen-VL configuration")
         if not services["common_space_service_ready"]:
-            logger.warning("   ⚠️ 公共空间分析服务未就绪，请检查Qwen-VL配置")
+            logger.warning("   Common space analysis service is not ready; check Qwen-VL configuration")
 
         return observer
 
     except Exception as e:
-        logger.warning(f"⚠️ Multi-folder monitoring not available: {e}")
+        logger.warning(f"Multi-folder monitoring not available: {e}")
         return None
 
 
 # ------------------------------------------------------------------
-# 单文件夹监控启动（向后兼容）| Single folder monitoring (backward compatible)
+# Single-folder monitoring (backward compatible)
 # ------------------------------------------------------------------
 def start_single_folder_monitoring(cfg: Dict[str, Any], services: Dict[str, Any]):
-    """启动单文件夹监控（向后兼容）"""
+    """Start single-folder monitoring for backward compatibility."""
     try:
         from scripts.file_watcher import start_file_watchdog
 
-        # 【关键修复】传入同一个 zone_checker 实例
+        # Pass the shared zone_checker instance through.
         observer = start_file_watchdog(
             folder_path=cfg["upload_folder"],
             model_loader=services["loader"],
             detection_service=services["parking_service"],
-            zone_checker=services["zone_checker"],  # ← 关键：同一个实例
+            zone_checker=services["zone_checker"],
             frame_interval=cfg["frame_interval_sec"]
         )
 
-        logger.info(f"👀 Single folder monitoring started: {cfg['upload_folder']}")
+        logger.info(f"Single folder monitoring started: {cfg['upload_folder']}")
         return observer
 
     except Exception as e:
-        logger.error(f"❌ Single folder monitoring failed: {e}")
+        logger.error(f"Single folder monitoring failed: {e}")
         return None
 
 
 # ------------------------------------------------------------------
-# 文件处理回调 | File processing callback
+# File processing callback
 # ------------------------------------------------------------------
 def create_file_processor(cfg: Dict[str, Any], services: Dict[str, Any]):
-    """创建文件处理器"""
+    """Create the file processing callback."""
 
     def process_video_file(video_path: str):
-        """处理视频文件"""
+        """Process a local video file."""
         try:
             from backend.utils.video_processor import infer_detection_type_from_path, process_video_official
 
             detection_type = infer_detection_type_from_path(video_path, cfg["upload_folder"])
-            logger.info(f"🎬 Processing: {os.path.basename(video_path)} | Type: {detection_type}")
+            logger.info(f"Processing: {os.path.basename(video_path)} | Type: {detection_type}")
 
             qwen_client = None
             if detection_type in ["smoke_flame", "common_space"]:
                 qwen_client = services["qwen_vl_client"]
                 if not qwen_client:
-                    logger.error(f"❌ Qwen-VL client not available for {detection_type} detection")
+                    logger.error(f"Qwen-VL client not available for {detection_type} detection")
                     return
 
             process_video_official(
                 video_path=video_path,
                 model_loader=services["loader"],
-                zone_checker=services["zone_checker"],  # ← 同一个实例
+                zone_checker=services["zone_checker"],
                 frame_interval=cfg["frame_interval_sec"],
                 detection_type=detection_type,
                 minio_client=services["minio"],
@@ -279,16 +299,16 @@ def create_file_processor(cfg: Dict[str, Any], services: Dict[str, Any]):
             )
 
         except Exception as e:
-            logger.error(f"❌ Failed to process {video_path}: {e}")
+            logger.error(f"Failed to process {video_path}: {e}")
 
     return process_video_file
 
 
 # ------------------------------------------------------------------
-# RTSP处理回调 | RTSP processing callback (legacy, kept for compatibility)
+# RTSP processing callback (legacy, kept for compatibility)
 # ------------------------------------------------------------------
 def create_rtsp_callback(services: Dict[str, Any], rtsp_id: str, detection_type: str = "parking_violation"):
-    """创建RTSP回调函数"""
+    """Create a legacy RTSP callback."""
 
     def rtsp_callback(source_id, frames):
         for frame_meta in frames:
@@ -302,53 +322,61 @@ def create_rtsp_callback(services: Dict[str, Any], rtsp_id: str, detection_type:
                     if services["common_space_service_ready"]:
                         services["common_space_service"].process_frame(frame_meta)
             except Exception as e:
-                logger.error(f"❌ RTSP processing error for {source_id}: {e}")
+                logger.error(f"RTSP processing error for {source_id}: {e}")
 
     return rtsp_callback
 
 
 # ------------------------------------------------------------------
-# StreamManager 创建 | Create StreamManager instance
+# Create StreamManager instance
 # ------------------------------------------------------------------
 def create_stream_manager(services: Dict[str, Any]):
-    """创建 StreamManager 实例"""
+    """Create the StreamManager instance."""
     from backend.services.stream_manager import StreamManager
 
-    stream_manager = StreamManager(services=services, mongo_client=services["mongo"])
-    logger.info("✅ StreamManager created")
+    # LEGACY:
+    # stream_manager = StreamManager(services=services, mongo_client=services["mongo"])
+    stream_manager = StreamManager(
+        runtime_factory=services["stream_runtime_factory"],
+        mongo_client=services["mongo"]
+    )
+    logger.info("StreamManager created")
     return stream_manager
 
 
 # ------------------------------------------------------------------
-# Flask API 服务器 | Flask API server (daemon thread)
+# Flask API server (daemon thread)
 # ------------------------------------------------------------------
-def start_api_server(stream_manager, port: int = 5000):
-    """在守护线程中启动 Flask API 服务器"""
+def start_api_server(stream_manager, mongo_client, port: int = 5000):
+    """Start the Flask API server in a daemon thread."""
     from flask import Flask
     from flask_cors import CORS
     from backend.api.stream_routes import stream_bp, init_stream_routes
+    from backend.api.event_routes import event_bp, init_event_routes
 
     app = Flask(__name__)
     CORS(app)
 
     init_stream_routes(stream_manager)
+    init_event_routes(mongo_client)
     app.register_blueprint(stream_bp)
+    app.register_blueprint(event_bp)
 
     def _run():
-        logger.info(f"🌐 Flask API starting on port {port}...")
+        logger.info(f"Flask API starting on port {port}...")
         app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
     t = threading.Thread(target=_run, daemon=True, name="flask-api")
     t.start()
-    logger.info(f"🌐 Flask API thread started (port {port})")
+    logger.info(f"Flask API thread started (port {port})")
     return t
 
 
 # ------------------------------------------------------------------
-# 启动RTSP源 (通过 StreamManager) | Start RTSP sources via StreamManager
+# Start RTSP sources via StreamManager
 # ------------------------------------------------------------------
 def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any], stream_manager=None):
-    """启动多路RTSP源 - 优先使用 StreamManager，回退到旧逻辑"""
+    """Start RTSP sources, preferring StreamManager when available."""
     rtsp_count = 0
 
     for idx, url_with_type in enumerate(cfg["rtsp_urls"]):
@@ -371,7 +399,7 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any], stream_man
         valid_types = ["parking_violation", "smoke_flame", "common_space"]
         tasks = [t for t in tasks if t in valid_types]
         if not tasks:
-            logger.warning(f"⚠️ No valid tasks for RTSP {idx}, using default")
+            logger.warning(f"No valid tasks for RTSP {idx}, using default")
             tasks = ["parking_violation"]
 
         # Use StreamManager if available
@@ -384,11 +412,11 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any], stream_man
                 )
                 rtsp_count += 1
                 logger.info(
-                    f"📴 RTSP source {idx} added via StreamManager: "
-                     f"{rtsp_url} | camera_id={camera_id or '-'} | Tasks: {tasks}"
+                    f"RTSP source {idx} added via StreamManager: "
+                    f"{rtsp_url} | camera_id={camera_id or '-'} | Tasks: {tasks}"
                 )
             except Exception as e:
-                logger.error(f"❌ Failed to add RTSP source {idx} via StreamManager: {e}")
+                logger.error(f"Failed to add RTSP source {idx} via StreamManager: {e}")
         else:
             # Legacy fallback (single task per stream)
             detection_type = tasks[0]
@@ -399,17 +427,17 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any], stream_man
                 source_key = camera_id or rtsp_id
 
                 if detection_type == "smoke_flame" and not services["smoke_service_ready"]:
-                    logger.warning(f"⚠️ Smoke/flame detection not ready for RTSP {idx}, skipping")
+                    logger.warning(f"Smoke/flame detection not ready for RTSP {idx}, skipping")
                     continue
                 elif detection_type == "common_space" and not services["common_space_service_ready"]:
-                    logger.warning(f"⚠️ Common space analysis not ready for RTSP {idx}, skipping")
+                    logger.warning(f"Common space analysis not ready for RTSP {idx}, skipping")
                     continue
 
                 if detection_type == "parking_violation" and camera_id:
                     zones = services["zone_checker"].get_zones_for_source(camera_id)
                     if not zones:
                         logger.warning(
-                            f"⚠️ Legacy RTSP fallback mode found no zone for camera_id={camera_id}. "
+                            f"Legacy RTSP fallback mode found no zone for camera_id={camera_id}. "
                             f"Please use StreamManager/API path for GUI-assisted setup."
                         )
                         continue
@@ -425,91 +453,96 @@ def start_rtsp_sources(cfg: Dict[str, Any], services: Dict[str, Any], stream_man
                 )
 
                 rtsp_count += 1
-                logger.info(f"📹 RTSP source {idx} added (legacy): {rtsp_url} | Type: {detection_type}")
+                logger.info(f"RTSP source {idx} added (legacy): {rtsp_url} | Type: {detection_type}")
 
             except Exception as e:
-                logger.error(f"❌ Failed to add RTSP source {idx}: {e}")
+                logger.error(f"Failed to add RTSP source {idx}: {e}")
 
     return rtsp_count
 
 
 # ------------------------------------------------------------------
-# 主函数 | Main entry
+# Main entry
 # ------------------------------------------------------------------
 def main():
-    logger.info("🚀 Starting Hybrid Video Analysis System...")
+    logger.info("Starting Hybrid Video Analysis System...")
     cfg = load_config()
 
     try:
-        # ----------- 1. 初始化所有服务 -----------
-        logger.info("🔄 Initializing services...")
+        # ----------- 1. Initialize shared services -----------
+        logger.info("Initializing services...")
         services = initialize_services(cfg)
 
-        # ----------- 2. 尝试启动多文件夹监控 -----------
+        # ----------- 2. Try multi-folder monitoring first -----------
         observer = start_multi_folder_monitoring(cfg, services)
 
-        # ----------- 3. 如果多文件夹监控失败，回退到单文件夹监控 -----------
+        # ----------- 3. Fall back to single-folder monitoring if needed -----------
         if not observer:
-            logger.info("🔄 Falling back to single folder monitoring...")
+            logger.info("Falling back to single folder monitoring...")
             observer = start_single_folder_monitoring(cfg, services)
 
             if not observer:
-                logger.error("❌ Both multi-folder and single-folder monitoring failed")
+                logger.error("Both multi-folder and single-folder monitoring failed")
                 return
 
         # ----------- 4. StreamManager + Flask API -----------
         stream_manager = create_stream_manager(services)
-        api_thread = start_api_server(stream_manager, port=5000)
+        api_thread = start_api_server(stream_manager, services["mongo"], port=5000)
 
-        # ----------- 5. 多路 RTSP（可选，通过 StreamManager） -----------
+        # ----------- 5. Optional RTSP sources via StreamManager -----------
         rtsp_count = start_rtsp_sources(cfg, services, stream_manager=stream_manager)
 
         if rtsp_count > 0:
-            logger.info(f"✅ {rtsp_count} RTSP sources initialized")
+            logger.info(f"{rtsp_count} RTSP sources initialized")
 
-        # ----------- 6. 系统状态报告 -----------
-        logger.info("📊 System Status:")
-        logger.info(f"   📁 Upload folder: {cfg['upload_folder']}")
-        logger.info(f"   🅿️ Parking detection: ✅ Ready")
-        logger.info(f"   🔥 Smoke/Flame detection: {'✅ Ready' if services['smoke_service_ready'] else '❌ Disabled'}")
+        # ----------- 6. System status summary -----------
+        logger.info("System Status:")
+        logger.info(f"   Upload folder: {cfg['upload_folder']}")
+        logger.info("   Parking detection: Ready")
         logger.info(
-            f"   🏢 Common space analysis: {'✅ Ready' if services['common_space_service_ready'] else '❌ Disabled'}")
+            f"   Smoke/Flame detection: "
+            f"{'Ready' if services['smoke_service_ready'] else 'Disabled'}"
+        )
+        logger.info(
+            f"   Common space analysis: "
+            f"{'Ready' if services['common_space_service_ready'] else 'Disabled'}"
+        )
         if services['common_space_service_ready']:
-            logger.info(f"   ⏱️ Common space interval: {cfg['common_space_interval_sec']}s")
-        logger.info(f"   📹 RTSP sources: {rtsp_count}")
-        logger.info(f"   ⏱️ Frame interval: {cfg['frame_interval_sec']}s")
-        logger.info(f"   🌐 Flask API: http://0.0.0.0:5000/api/streams")
+            logger.info(f"   Common space interval: {cfg['common_space_interval_sec']}s")
+        logger.info(f"   RTSP sources: {rtsp_count}")
+        logger.info(f"   Frame interval: {cfg['frame_interval_sec']}s")
+        logger.info("   Flask API: http://0.0.0.0:5000/api/streams")
 
-        # ----------- 7. 创建uploads目录结构 -----------
+        # ----------- 7. Ensure upload folders exist -----------
         upload_folder = cfg["upload_folder"]
         os.makedirs(upload_folder, exist_ok=True)
 
         common_space_folder = os.path.join(upload_folder, "common_space")
         os.makedirs(common_space_folder, exist_ok=True)
-        logger.info(f"📁 Created directory: {common_space_folder}")
+        logger.info(f"Created directory: {common_space_folder}")
 
         for folder_name in ["parking", "smoke_flame"]:
             folder_path = os.path.join(upload_folder, folder_name)
             os.makedirs(folder_path, exist_ok=True)
 
-        # ----------- 8. 使用说明 -----------
-        logger.info("📋 Usage Instructions:")
+        # ----------- 8. Usage notes -----------
+        logger.info("Usage Instructions:")
         logger.info("   1. Place videos for analysis in the following folders:")
-        logger.info("      - 🅿️  uploads/parking/        : Parking violation detection")
-        logger.info("      - 🔥  uploads/smoke_flame/    : Smoke/Flame detection")
-        logger.info("      - 🏢  uploads/common_space/   : Public space analysis (new)")
+        logger.info("      - uploads/parking/        : Parking violation detection")
+        logger.info("      - uploads/smoke_flame/    : Smoke/Flame detection")
+        logger.info("      - uploads/common_space/   : Public space analysis")
         logger.info("   2. The system will automatically process uploaded videos")
         logger.info("   3. For common space analysis, frames are sampled every 30 seconds")
         logger.info("   4. Analysis results are saved to MinIO and MongoDB")
 
-        # ----------- 9. 主线程保活 -----------
-        logger.info("🎉 System started successfully! Press Ctrl+C to stop.")
+        # ----------- 9. Keep the main thread alive -----------
+        logger.info("System started successfully. Press Ctrl+C to stop.")
 
         try:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            logger.info("👋 Shutting down...")
+            logger.info("Shutting down...")
             stream_manager.stop_all()
             observer.stop()
             observer.join()
@@ -520,10 +553,10 @@ def main():
             if services["common_space_service_ready"]:
                 services["common_space_service"].flush_remaining()
 
-            logger.info("✅ System stopped gracefully")
+            logger.info("System stopped gracefully")
 
     except Exception as e:
-        logger.error(f"❌ Main error: {e}", exc_info=True)
+        logger.error(f"Main error: {e}", exc_info=True)
 
 
 if __name__ == "__main__":

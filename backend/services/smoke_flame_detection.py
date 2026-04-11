@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # backend/services/smoke_flame_detection.py
 """
 Smoke and Flame Detection Service —— 烟火检测服务
@@ -29,6 +30,11 @@ from backend.utils.visualization import render_official_frame
 from storage.minio_client import MinIOClient
 from storage.mongodb_client import MongoDBClient
 from backend.utils.frame_capture import FrameWithMetadata
+from backend.utils.performance_metrics import (
+    SlidingCounter,
+    LatencyRecorder,
+    get_thread_pool_queue_size,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +48,38 @@ class SmokeFlameDetectionService:
         self.model_loader = None
         self.yolo_model = None
         self.qwen_vl_client = None
+        # LEGACY: one shared pool for both outer frame jobs and inner Qwen verification
+        # could starve itself when _process_frame_async submitted nested work back into
+        # the same executor.
+        self.detection_pool = ThreadPoolExecutor(
+            max_workers=6,
+            thread_name_prefix="smoke-detect"
+        )
+        self.verification_pool = ThreadPoolExecutor(
+            max_workers=8,
+            thread_name_prefix="smoke-verify"
+        )
         self.frame_skip = 23  # 跳帧设置，每24帧处理1帧 | Frame skipping, process 1 frame every 24 frames
         self.last_processed_frame = {}  # 记录每个source_id的最后处理帧 | Track last processed frame per source_id
-        self.thread_pool = ThreadPoolExecutor(max_workers=6)  # 增加并行工作线程 | Increase parallel workers
+        # LEGACY: self.thread_pool = ThreadPoolExecutor(max_workers=6)  # shared outer/inner pool
         self.detection_cache = {}  # 检测结果缓存 | Detection result cache
+        self.metrics_lock = threading.Lock()
+        self.received_counter = SlidingCounter(window_sec=10.0)
+        self.submitted_counter = SlidingCounter(window_sec=10.0)
+        self.event_counter = SlidingCounter(window_sec=10.0)
+        self.yolo_latency = LatencyRecorder()
+        self.qwen_latency = LatencyRecorder()
+        self.async_detection_latency = LatencyRecorder()
+        self.save_latency = LatencyRecorder()
+        self.frames_received_total = 0
+        self.frames_skipped_total = 0
+        self.frames_submitted_total = 0
+        self.frames_with_candidates_total = 0
+        self.frames_verified_total = 0
+        self.events_saved_total = 0
+        self.qwen_requests_total = 0
+        self.last_candidate_count = 0
+        self.last_verified_count = 0
 
     # -------------------- 依赖注入 --------------------
     def set_clients(self, minio_client: MinIOClient, mongo_client: MongoDBClient):
@@ -67,6 +101,30 @@ class SmokeFlameDetectionService:
         self.frame_skip = skip_frames
         logger.debug(f"🔄 Set frame skip to {skip_frames} frames")
 
+    def get_runtime_metrics(self) -> Dict[str, Any]:
+        with self.metrics_lock:
+            return {
+                "frame_skip": self.frame_skip,
+                "frames_received_total": self.frames_received_total,
+                "frames_skipped_total": self.frames_skipped_total,
+                "frames_submitted_total": self.frames_submitted_total,
+                "frames_with_candidates_total": self.frames_with_candidates_total,
+                "frames_verified_total": self.frames_verified_total,
+                "events_saved_total": self.events_saved_total,
+                "qwen_requests_total": self.qwen_requests_total,
+                "received_fps_10s": self.received_counter.snapshot()["rate_per_sec"],
+                "submitted_fps_10s": self.submitted_counter.snapshot()["rate_per_sec"],
+                "event_fps_10s": self.event_counter.snapshot()["rate_per_sec"],
+                "last_candidate_count": self.last_candidate_count,
+                "last_verified_count": self.last_verified_count,
+                "detection_queue_size": get_thread_pool_queue_size(self.detection_pool),
+                "verification_queue_size": get_thread_pool_queue_size(self.verification_pool),
+                "yolo_latency": self.yolo_latency.snapshot(),
+                "qwen_latency": self.qwen_latency.snapshot(),
+                "async_detection_latency": self.async_detection_latency.snapshot(),
+                "save_latency": self.save_latency.snapshot(),
+            }
+
     # -------------------- 主检测流程 --------------------
     def process_frame(self, frame_meta: FrameWithMetadata) -> None:
         """
@@ -76,6 +134,10 @@ class SmokeFlameDetectionService:
         Args:
             frame_meta: 帧元数据 | Frame metadata
         """
+        self.received_counter.add()
+        with self.metrics_lock:
+            self.frames_received_total += 1
+
         if not all([self.minio_client, self.mongo_client, self.yolo_model]):
             logger.error(f"❌ Service not fully initialized. "
                          f"minio={self.minio_client is not None}, "
@@ -88,6 +150,8 @@ class SmokeFlameDetectionService:
 
         # 1. 跳帧检测 - 大幅减少处理帧数 | Frame skipping - significantly reduce processed frames
         if not self._should_process_frame(source_id, frame_index):
+            with self.metrics_lock:
+                self.frames_skipped_total += 1
             return
 
         # 2. 更新最后处理帧 | Update last processed frame
@@ -101,7 +165,11 @@ class SmokeFlameDetectionService:
         logger.debug(f"🔥 Processing frame {frame_index} for {source_id}")
 
         # 3. 异步处理检测流程 | Async process detection pipeline
-        future = self.thread_pool.submit(self._process_frame_async, frame_meta, current_timestamp)
+        # LEGACY: future = self.thread_pool.submit(self._process_frame_async, frame_meta, current_timestamp)
+        self.submitted_counter.add()
+        with self.metrics_lock:
+            self.frames_submitted_total += 1
+        future = self.detection_pool.submit(self._process_frame_async, frame_meta, current_timestamp)
         future.add_done_callback(lambda f: self._handle_processing_result(f, source_id, frame_index))
 
     def _should_process_frame(self, source_id: str, frame_index: int) -> bool:
@@ -121,6 +189,7 @@ class SmokeFlameDetectionService:
         """
         Async frame processing.
         """
+        async_started = time.perf_counter()
         try:
             source_id = frame_meta.source_id
             image = frame_meta.image
@@ -129,8 +198,14 @@ class SmokeFlameDetectionService:
             yolo_detections = self._yolo_detection_enhanced(image)
 
             if not yolo_detections:
+                with self.metrics_lock:
+                    self.last_candidate_count = 0
+                    self.last_verified_count = 0
                 return {"source_id": source_id, "detections": [], "timestamp": timestamp, "frame_meta": frame_meta}
 
+            with self.metrics_lock:
+                self.frames_with_candidates_total += 1
+                self.last_candidate_count = len(yolo_detections)
             logger.debug(f"🔥 YOLOv8 detected {len(yolo_detections)} potential smoke/flame regions in {source_id}")
 
             # 2. 对检测结果进行分组和筛选 | Group and filter detection results
@@ -146,9 +221,14 @@ class SmokeFlameDetectionService:
             verified_detections = self._qwen_vl_verification_parallel(image, filtered_detections, source_id)
 
             if not verified_detections:
+                with self.metrics_lock:
+                    self.last_verified_count = 0
                 logger.debug(f"🟡 Qwen-VL rejected all YOLOv8 detections in {source_id}")
                 return {"source_id": source_id, "detections": [], "timestamp": timestamp, "frame_meta": frame_meta}
 
+            with self.metrics_lock:
+                self.frames_verified_total += 1
+                self.last_verified_count = len(verified_detections)
             logger.debug(f"✅ Qwen-VL verified {len(verified_detections)} smoke/flame events in {source_id}")
 
             return {
@@ -162,6 +242,8 @@ class SmokeFlameDetectionService:
             logger.error(f"❌ Async frame processing failed: {e}")
             return {"source_id": frame_meta.source_id, "detections": [], "timestamp": timestamp,
                     "frame_meta": frame_meta}
+        finally:
+            self.async_detection_latency.record(time.perf_counter() - async_started)
 
     def _handle_processing_result(self, future, source_id: str, frame_index: int):
         """
@@ -203,11 +285,12 @@ class SmokeFlameDetectionService:
                 resized_image = image
 
             # 运行YOLOv8检测 - 使用更低的置信度阈值 | Run YOLOv8 detection - use lower confidence threshold
-            start_time = time.time()
+            start_time = time.perf_counter()
             raw_detections = YOLOInference.run_detection(
                 self.yolo_model, resized_image, conf_threshold=0.10  # 降低阈值提高召回率 | Lower threshold for better recall
             )
-            detection_time = time.time() - start_time
+            detection_time = time.perf_counter() - start_time
+            self.yolo_latency.record(detection_time)
             logger.debug(f"⏱️ YOLOv8 detection time: {detection_time:.3f}s")
 
             # 转换为标准格式 | Convert to standard format
@@ -353,7 +436,8 @@ class SmokeFlameDetectionService:
                     continue
 
                 # 提交验证任务 | Submit verification task
-                future = self.thread_pool.submit(
+                # LEGACY: future = self.thread_pool.submit(
+                future = self.verification_pool.submit(
                     self._single_verification,
                     cropped_image, detection, i, source_id
                 )
@@ -390,9 +474,12 @@ class SmokeFlameDetectionService:
         单个检测区域的验证 | Single detection region verification
         """
         try:
-            start_time = time.time()
+            start_time = time.perf_counter()
             is_verified = self.qwen_vl_client.verify_smoke_flame(cropped_image)
-            verification_time = time.time() - start_time
+            verification_time = time.perf_counter() - start_time
+            self.qwen_latency.record(verification_time)
+            with self.metrics_lock:
+                self.qwen_requests_total += 1
             logger.debug(f"⏱️ Qwen-VL verification {index + 1} time: {verification_time:.3f}s")
             return is_verified
         except Exception as e:
@@ -465,6 +552,7 @@ class SmokeFlameDetectionService:
             detections: 检测结果 | Detection results
             timestamp: 时间戳 | Timestamp
         """
+        save_started = time.perf_counter()
         try:
             source_id = frame_meta.source_id
             image = frame_meta.image
@@ -504,16 +592,22 @@ class SmokeFlameDetectionService:
                 camera_id=source_id,
                 timestamp=timestamp,
                 frame_index=frame_meta.frame_index,
-                violations=validated_detections
+                violations=validated_detections,
+                event_type_override="smoke_flame"
             )
 
             if ok:
+                self.event_counter.add()
+                with self.metrics_lock:
+                    self.events_saved_total += 1
                 logger.debug(f"✅ Smoke/Flame events saved: {len(validated_detections)} detections")
             else:
                 logger.error("❌ Failed to save smoke/flame events to database")
 
         except Exception as e:
             logger.error(f"❌ Failed to save smoke/flame detection events: {e}")
+        finally:
+            self.save_latency.record(time.perf_counter() - save_started)
 
     def _validate_detection_bboxes(self, detections: List[Dict[str, Any]], image_shape: Tuple[int, int, int]) -> List[
         Dict[str, Any]]:
@@ -569,7 +663,9 @@ class SmokeFlameDetectionService:
         """处理剩余帧（兼容性方法）| Process remaining frames (compatibility method)"""
         logger.debug("🔄 Smoke/Flame detection - Flush remaining called")
         # 等待所有异步任务完成 | Wait for all async tasks to complete
-        self.thread_pool.shutdown(wait=True)
+        # LEGACY: self.thread_pool.shutdown(wait=True)
+        self.detection_pool.shutdown(wait=True)
+        self.verification_pool.shutdown(wait=True)
 
 
 # -------------------- Qwen-VL API 客户端 --------------------

@@ -4,6 +4,7 @@ Flask Blueprint for RTSP stream management REST API.
 
 Endpoints:
   GET    /api/streams            - list all streams
+  GET    /api/streams/<id>/metrics - get runtime metrics for one stream
   POST   /api/streams            - add a stream  {url, tasks, camera_id}
   DELETE /api/streams/<id>       - remove a stream
   PUT    /api/streams/<id>/tasks - update tasks   {tasks}
@@ -33,6 +34,17 @@ def list_streams():
     if _stream_manager is None:
         return jsonify({"error": "StreamManager not initialised"}), 503
     return jsonify(_stream_manager.get_streams()), 200
+
+
+@stream_bp.route("/api/streams/<stream_id>/metrics", methods=["GET"])
+def get_stream_metrics(stream_id):
+    if _stream_manager is None:
+        return jsonify({"error": "StreamManager not initialised"}), 503
+
+    data = _stream_manager.get_stream_metrics(stream_id)
+    if data is None:
+        return jsonify({"error": f"{stream_id} not found"}), 404
+    return jsonify(data), 200
 
 
 # ------------------------------------------------------------------

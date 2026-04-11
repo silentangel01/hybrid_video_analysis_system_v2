@@ -6,6 +6,10 @@ VLM does NOT block YOLO:
   - parking_violation runs synchronously in the pool thread (~50ms)
   - smoke_flame / common_space internally submit to their own async ThreadPools,
     so the dispatcher thread returns immediately.
+
+LEGACY NOTE:
+  - RTSP streams now use per-stream executors via StreamRuntime
+  - this module remains for legacy/offline code paths
 """
 
 import logging

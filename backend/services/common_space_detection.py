@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # backend/services/common_space_detection.py
 """
 Common Space Utilization Detection Service —— 公共空间利用率检测服务
@@ -11,7 +12,9 @@ import logging
 import time
 import base64
 import requests
+import threading
 from typing import Dict, Any, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor
 import cv2
 import numpy as np
 
@@ -19,6 +22,11 @@ from backend.utils.frame_capture import FrameWithMetadata
 from storage.minio_client import MinIOClient
 from storage.mongodb_client import MongoDBClient
 from backend.services.event_generator import handle_frame_events
+from backend.utils.performance_metrics import (
+    SlidingCounter,
+    LatencyRecorder,
+    get_thread_pool_queue_size,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +38,28 @@ class CommonSpaceDetectionService:
         self.minio_client = None
         self.mongo_client = None
         self.qwen_vl_client = None
+        self.sample_lock = threading.Lock()
+        self.metrics_lock = threading.Lock()
+        # LEGACY: per-sample threading.Thread(...) was simple but could create
+        # too many short-lived threads when several RTSP streams sampled together.
+        self.analysis_pool = ThreadPoolExecutor(
+            max_workers=4,
+            thread_name_prefix="common-space"
+        )
         self.sample_interval = 30  # 默认采样间隔：30秒 | Default sampling interval: 30 seconds
         self.last_sample_time = {}  # 记录每个source_id的最后采样时间 | Track last sample time per source_id
         self.system_prompt = "You are a professional public space analysis assistant. Please carefully observe the image and analyze the usage of public space."
         self.user_prompt = "Please analyze the public space usage in this image, including but not limited to: number of people, activity types, space occupancy rate, and any potential safety hazards. Provide a detailed analysis report."
+        self.received_counter = SlidingCounter(window_sec=10.0)
+        self.sampled_counter = SlidingCounter(window_sec=10.0)
+        self.event_counter = SlidingCounter(window_sec=10.0)
+        self.analysis_latency = LatencyRecorder()
+        self.save_latency = LatencyRecorder()
+        self.frames_received_total = 0
+        self.frames_skipped_total = 0
+        self.frames_sampled_total = 0
+        self.events_saved_total = 0
+        self.analysis_inflight = 0
 
     # -------------------- Dependency Injection --------------------
     def set_clients(self, minio_client: MinIOClient, mongo_client: MongoDBClient):
@@ -58,6 +84,23 @@ class CommonSpaceDetectionService:
             self.user_prompt = user_prompt
         logger.debug("🔄 Updated Qwen-VL prompts for common space analysis")
 
+    def get_runtime_metrics(self) -> Dict[str, Any]:
+        with self.metrics_lock:
+            return {
+                "sample_interval": self.sample_interval,
+                "frames_received_total": self.frames_received_total,
+                "frames_skipped_total": self.frames_skipped_total,
+                "frames_sampled_total": self.frames_sampled_total,
+                "events_saved_total": self.events_saved_total,
+                "analysis_inflight": self.analysis_inflight,
+                "received_fps_10s": self.received_counter.snapshot()["rate_per_sec"],
+                "sampled_fps_10s": self.sampled_counter.snapshot()["rate_per_sec"],
+                "event_fps_10s": self.event_counter.snapshot()["rate_per_sec"],
+                "analysis_queue_size": get_thread_pool_queue_size(self.analysis_pool),
+                "analysis_latency": self.analysis_latency.snapshot(),
+                "save_latency": self.save_latency.snapshot(),
+            }
+
     # -------------------- Main Detection Pipeline --------------------
     def process_frame(self, frame_meta: FrameWithMetadata) -> None:
         """
@@ -67,6 +110,10 @@ class CommonSpaceDetectionService:
         Args:
             frame_meta: Frame metadata
         """
+        self.received_counter.add()
+        with self.metrics_lock:
+            self.frames_received_total += 1
+
         if not all([self.minio_client, self.mongo_client, self.qwen_vl_client]):
             logger.error("❌ Common space service not fully initialized.")
             return
@@ -75,45 +122,76 @@ class CommonSpaceDetectionService:
         current_time = time.time()
 
         # 1. Sampling interval check
-        if not self._should_sample_frame(source_id, current_time):
+        if not self._reserve_sample_slot(source_id, current_time):
+            with self.metrics_lock:
+                self.frames_skipped_total += 1
             return
 
-        # 2. Update last sample time
-        self.last_sample_time[source_id] = current_time
+        self.sampled_counter.add()
+        with self.metrics_lock:
+            self.frames_sampled_total += 1
 
         image = frame_meta.image
         timestamp = current_time
 
         logger.debug(f"🏢 Sampling frame for common space analysis: {source_id}")
 
-        # 3. Async process analysis pipeline
-        import threading
-        thread = threading.Thread(
-            target=self._process_frame_analysis,
-            args=(frame_meta, timestamp),
-            daemon=True
+        # LEGACY:
+        # import threading
+        # thread = threading.Thread(
+        #     target=self._process_frame_analysis,
+        #     args=(frame_meta, timestamp),
+        #     daemon=True
+        # )
+        # thread.start()
+        future = self.analysis_pool.submit(
+            self._process_frame_analysis,
+            frame_meta,
+            timestamp
         )
-        thread.start()
+        future.add_done_callback(lambda f: self._handle_analysis_result(f, source_id))
 
-    def _should_sample_frame(self, source_id: str, current_time: float) -> bool:
+    def _reserve_sample_slot(self, source_id: str, current_time: float) -> bool:
         """
         判断是否应该采样当前帧
         Determine if current frame should be sampled
         """
-        if source_id not in self.last_sample_time:
-            self.last_sample_time[source_id] = 0
+        # LEGACY:
+        # if source_id not in self.last_sample_time:
+        #     self.last_sample_time[source_id] = 0
+        #     return True
+        #
+        # last_sample = self.last_sample_time[source_id]
+        # time_since_last = current_time - last_sample
+        # return time_since_last >= self.sample_interval
+        with self.sample_lock:
+            if source_id not in self.last_sample_time:
+                self.last_sample_time[source_id] = current_time
+                return True
+
+            last_sample = self.last_sample_time[source_id]
+            time_since_last = current_time - last_sample
+            if time_since_last < self.sample_interval:
+                return False
+
+            self.last_sample_time[source_id] = current_time
             return True
 
-        last_sample = self.last_sample_time[source_id]
-        time_since_last = current_time - last_sample
-
-        return time_since_last >= self.sample_interval
+    def _handle_analysis_result(self, future, source_id: str):
+        try:
+            future.result()
+        except Exception as e:
+            logger.error(f"Common space async worker crashed for {source_id}: {e}")
 
     def _process_frame_analysis(self, frame_meta: FrameWithMetadata, timestamp: float):
         """
         处理帧分析 - 独立的线程执行
         Process frame analysis - executed in separate thread
         """
+        analysis_started = time.perf_counter()
+        with self.metrics_lock:
+            self.analysis_inflight += 1
+
         try:
             source_id = frame_meta.source_id
             image = frame_meta.image
@@ -137,6 +215,10 @@ class CommonSpaceDetectionService:
 
         except Exception as e:
             logger.error(f"❌ Common space analysis failed for {frame_meta.source_id}: {e}")
+        finally:
+            self.analysis_latency.record(time.perf_counter() - analysis_started)
+            with self.metrics_lock:
+                self.analysis_inflight = max(0, self.analysis_inflight - 1)
 
     def _analyze_with_qwen_vl(self, image: np.ndarray) -> Optional[str]:
         """
@@ -458,6 +540,7 @@ class CommonSpaceDetectionService:
             event_data: Event data
             timestamp: Timestamp
         """
+        save_started = time.perf_counter()
         try:
             source_id = frame_meta.source_id
             image = frame_meta.image
@@ -476,7 +559,7 @@ class CommonSpaceDetectionService:
 
             # Clean URL
             clean_url = image_url.split('?')[0] if '?X-Amz-' in image_url else image_url
-            logger.debug("📸 Common space analysis image URL: {clean_url}")
+            logger.debug(f"📸 Common space analysis image URL: {clean_url}")
 
             # 2. Pass analysis result as violations field
             violations = [{
@@ -497,6 +580,9 @@ class CommonSpaceDetectionService:
             )
 
             if ok:
+                self.event_counter.add()
+                with self.metrics_lock:
+                    self.events_saved_total += 1
                 logger.debug(f"✅ Common space analysis event saved: {source_id}")
                 logger.debug(f"📋 Analysis summary: {event_data['summary']}")
             else:
@@ -504,10 +590,14 @@ class CommonSpaceDetectionService:
 
         except Exception as e:
             logger.error(f"❌ Failed to save common space analysis event: {e}")
+        finally:
+            self.save_latency.record(time.perf_counter() - save_started)
 
     def flush_remaining(self):
         """处理剩余帧（兼容性方法）| Process remaining frames (compatibility method)"""
         logger.debug("🔄 Common space detection - Flush remaining called")
+
+        self.analysis_pool.shutdown(wait=True)
 
 # -------------------- Global Instance --------------------
 common_space_detection_service = CommonSpaceDetectionService()
