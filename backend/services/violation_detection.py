@@ -45,6 +45,9 @@ class ViolationDetectionService:
         # Ultralytics YOLO is not thread-safe for concurrent predict calls on
         # the same model instance; serialise inference when RTSP frames overlap.
         self._inference_lock = threading.Lock()
+        # Location metadata (set by StreamRuntimeFactory)
+        self.lat_lng: str = ""
+        self.location: str = ""
 
         # Metrics
         self.metrics_lock = threading.Lock()
@@ -204,6 +207,8 @@ class ViolationDetectionService:
             frame_index=frame_meta.frame_index,
             detections=violations,
             zones=zones,
+            lat_lng=self.lat_lng or None,
+            location=self.location or None,
         )
         self.db_latency.record(time.perf_counter() - db_started)
 

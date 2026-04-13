@@ -146,6 +146,8 @@ class StreamRuntime:
     started_event: Any = field(default_factory=threading.Event, repr=False)
     status: str = "connecting"
     created_at: float = field(default_factory=time.time)
+    lat_lng: str = ""
+    location: str = ""
 
     def dispatch_frame(self, frame_meta):
         self.executor.dispatch(frame_meta, self.tasks)
@@ -249,13 +251,15 @@ class StreamRuntimeFactory:
         tasks: List[str],
         camera_id: str,
         created_at: Optional[float] = None,
+        lat_lng: str = "",
+        location: str = "",
     ) -> StreamRuntime:
         tasks = [t for t in tasks if t in self.VALID_TASKS]
         if not tasks:
             raise ValueError("No valid tasks provided for StreamRuntime")
 
         loader = self._build_model_loader(tasks)
-        handlers = self._build_handlers(tasks, loader)
+        handlers = self._build_handlers(tasks, loader, lat_lng=lat_lng, location=location)
         executor = StreamExecutor(stream_id=stream_id, handlers=handlers)
 
         return StreamRuntime(
@@ -267,6 +271,8 @@ class StreamRuntimeFactory:
             handlers=handlers,
             executor=executor,
             created_at=created_at or time.time(),
+            lat_lng=lat_lng,
+            location=location,
         )
 
     def _build_model_loader(self, tasks: List[str]) -> YOLOModelLoader:
@@ -287,7 +293,7 @@ class StreamRuntimeFactory:
 
         return loader
 
-    def _build_handlers(self, tasks: List[str], loader: YOLOModelLoader) -> Dict[str, Any]:
+    def _build_handlers(self, tasks: List[str], loader: YOLOModelLoader, lat_lng: str = "", location: str = "") -> Dict[str, Any]:
         handlers: Dict[str, Any] = {}
 
         if "parking_violation" in tasks:
@@ -300,6 +306,8 @@ class StreamRuntimeFactory:
             )
             parking_handler.set_model_loader(loader)
             parking_handler.set_zone_checker(self.resources.zone_checker)
+            parking_handler.lat_lng = lat_lng
+            parking_handler.location = location
             handlers["parking_violation"] = parking_handler
 
         if "smoke_flame" in tasks:
@@ -310,6 +318,8 @@ class StreamRuntimeFactory:
             smoke_handler.set_model_loader(loader)
             if self.resources.qwen_vl_client:
                 smoke_handler.set_qwen_vl_client(self.resources.qwen_vl_client)
+            smoke_handler.lat_lng = lat_lng
+            smoke_handler.location = location
             handlers["smoke_flame"] = smoke_handler
 
         if "common_space" in tasks:

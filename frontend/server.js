@@ -124,7 +124,7 @@ app.get('/api/events-all', async (req, res) => {
         const events = await collection
             .find({})
             .sort({ timestamp: -1 })
-            .limit(50)
+            .limit(200)
             .toArray();
 
         // 转换 ObjectId 为字符串（避免 JSON 序列化问题）

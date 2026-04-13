@@ -11,25 +11,25 @@ const routes = [
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('../views/Dashboard.vue'),
-        meta: { title: '数据概览' }
+        meta: { title: 'Dashboard' }
       },
       {
         path: 'streams',
         name: 'Streams',
         component: () => import('../views/StreamManager.vue'),
-        meta: { title: '视频流管理' }
+        meta: { title: 'Streams' }
       },
       {
         path: 'events',
         name: 'Events',
         component: () => import('../views/EventList.vue'),
-        meta: { title: '事件记录' }
+        meta: { title: 'Events' }
       },
       {
         path: 'upload',
         name: 'Upload',
         component: () => import('../views/UploadVideo.vue'),
-        meta: { title: '视频上传' }
+        meta: { title: 'Upload' }
       }
     ]
   }

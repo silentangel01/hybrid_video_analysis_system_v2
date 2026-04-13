@@ -26,13 +26,13 @@
           <svg viewBox="0 0 24 24" width="24" height="24" fill="var(--color-danger)" stroke="none">
             <path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"/>
           </svg>
-          <h3>烟火告警</h3>
+          <h3>Fire Alert</h3>
         </div>
-        <p class="fire-modal-desc">以下视频源检测到烟火：</p>
+        <p class="fire-modal-desc">Smoke/fire detected from the following sources:</p>
         <ul class="fire-source-list">
           <li v-for="source in fireAlert.sources" :key="source">{{ source }}</li>
         </ul>
-        <button class="btn-primary" @click="showFireModal = false">知道了</button>
+        <button class="btn-primary" @click="showFireModal = false">Dismiss</button>
       </div>
     </div>
   </div>
@@ -49,13 +49,13 @@ const { fireAlert } = useFireAlert()
 const showFireModal = ref(false)
 const currentTime = ref('')
 
-const pageTitle = computed(() => route.meta?.title || '数据概览')
+const pageTitle = computed(() => route.meta?.title || 'Dashboard')
 
 let timeTimer = null
 
 function updateTime() {
   const now = new Date()
-  currentTime.value = now.toLocaleString('zh-CN', {
+  currentTime.value = now.toLocaleString('en-US', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',

@@ -1,18 +1,18 @@
 <template>
   <div class="event-list">
-    <!-- 筛选栏 -->
+    <!-- Filter bar -->
     <div class="filter-bar">
       <div class="filter-group">
-        <label class="filter-label">事件类型</label>
+        <label class="filter-label">Event Type</label>
         <select v-model="filterType" class="filter-select">
-          <option value="">全部类型</option>
-          <option value="smoke_flame">烟火告警</option>
-          <option value="parking_violation">违停检测</option>
-          <option value="common_space_utilization">空间分析</option>
+          <option value="">All Types</option>
+          <option value="smoke_flame">Smoke/Fire Alert</option>
+          <option value="parking_violation">Parking Violation</option>
+          <option value="common_space_utilization">Space Analysis</option>
         </select>
       </div>
       <div class="filter-group">
-        <label class="filter-label">时间范围</label>
+        <label class="filter-label">Time Range</label>
         <div class="time-btns">
           <button
             v-for="opt in timeOptions"
@@ -25,23 +25,23 @@
         </div>
       </div>
       <button class="btn-refresh" @click="refresh" :disabled="loading">
-        {{ loading ? '刷新中...' : '刷新' }}
+        {{ loading ? 'Refreshing...' : 'Refresh' }}
       </button>
     </div>
 
-    <!-- 错误提示 -->
+    <!-- Error message -->
     <div v-if="error" class="error-bar">
-      加载失败：{{ error }}
-      <button class="btn-retry" @click="fetchEvents">重试</button>
+      Failed to load: {{ error }}
+      <button class="btn-retry" @click="fetchEvents">Retry</button>
     </div>
 
-    <!-- 加载状态 -->
-    <div v-else-if="loading && events.length === 0" class="state-msg">正在加载事件记录...</div>
+    <!-- Loading state -->
+    <div v-else-if="loading && events.length === 0" class="state-msg">Loading events...</div>
 
-    <!-- 无数据 -->
-    <div v-else-if="filteredEvents.length === 0" class="state-msg">暂无事件记录</div>
+    <!-- Empty state -->
+    <div v-else-if="filteredEvents.length === 0" class="state-msg">No events found</div>
 
-    <!-- 事件网格 -->
+    <!-- Events grid -->
     <div v-else class="events-grid">
       <div v-for="event in paginatedEvents" :key="event._id" class="event-card">
         <div class="event-head">
@@ -49,19 +49,21 @@
           <span class="confidence">{{ (event.confidence * 100).toFixed(1) }}%</span>
         </div>
         <div class="event-detail">
-          <p><span class="detail-label">视频源：</span>{{ event.camera_id }}</p>
-          <p><span class="detail-label">时间：</span>{{ formatTimestamp(event.timestamp) }}</p>
+          <p><span class="detail-label">Source: </span>{{ event.camera_id }}</p>
+          <p><span class="detail-label">Time: </span>{{ formatTimestamp(event.timestamp) }}</p>
+          <p v-if="event.location"><span class="detail-label">Location: </span>{{ event.location }}</p>
+          <p v-if="event.lat_lng"><span class="detail-label">Coordinates: </span>{{ event.lat_lng }}</p>
         </div>
 
         <div v-if="event.event_type === 'common_space_utilization' && event.analysis_summary?.space_occupancy" class="event-detail">
-          <p><span class="detail-label">占用率：</span>{{ event.analysis_summary.space_occupancy }}</p>
+          <p><span class="detail-label">Occupancy: </span>{{ event.analysis_summary.space_occupancy }}</p>
         </div>
 
         <div v-if="event.description" class="event-detail">
-          <p><span class="detail-label">描述：</span>{{ event.description }}</p>
+          <p><span class="detail-label">Description: </span>{{ event.description }}</p>
         </div>
 
-        <div v-if="event.event_type === 'parking_violation'" class="violation-tag">违停</div>
+        <div v-if="event.event_type === 'parking_violation'" class="violation-tag">Violation</div>
 
         <div v-if="event.image_url" class="image-preview">
           <img
@@ -72,20 +74,20 @@
             loading="lazy"
           />
         </div>
-        <div v-else class="no-image">无截图</div>
+        <div v-else class="no-image">No screenshot</div>
       </div>
     </div>
 
-    <!-- 分页 -->
+    <!-- Pagination -->
     <div v-if="filteredEvents.length > itemsPerPage" class="pagination">
-      <button class="page-btn" @click="currentPage--" :disabled="currentPage <= 1">上一页</button>
-      <span class="page-info">第 {{ currentPage }} 页 / 共 {{ totalPages }} 页</span>
-      <button class="page-btn" @click="currentPage++" :disabled="currentPage >= totalPages">下一页</button>
+      <button class="page-btn" @click="currentPage--" :disabled="currentPage <= 1">Previous</button>
+      <span class="page-info">Page {{ currentPage }} of {{ totalPages }}</span>
+      <button class="page-btn" @click="currentPage++" :disabled="currentPage >= totalPages">Next</button>
     </div>
 
-    <!-- 图片放大 -->
+    <!-- Image modal -->
     <div v-if="fullImage" class="image-modal" @click="closeFullImage">
-      <img :src="fullImage" alt="大图" @click.stop />
+      <img :src="fullImage" alt="Full image" @click.stop />
     </div>
   </div>
 </template>
@@ -104,19 +106,19 @@ const filterType = ref('')
 const filterTime = ref('')
 
 const timeOptions = [
-  { label: '最近1小时', value: '1h' },
-  { label: '最近24小时', value: '24h' },
-  { label: '最近7天', value: '7d' },
-  { label: '全部', value: '' }
+  { label: 'Last 1h', value: '1h' },
+  { label: 'Last 24h', value: '24h' },
+  { label: 'Last 7d', value: '7d' },
+  { label: 'All', value: '' }
 ]
 
 let refreshInterval = null
 
 function typeLabel(t) {
   const map = {
-    smoke_flame: '烟火告警',
-    parking_violation: '违停检测',
-    common_space_utilization: '空间分析'
+    smoke_flame: 'Smoke/Fire Alert',
+    parking_violation: 'Parking Violation',
+    common_space_utilization: 'Space Analysis'
   }
   return map[t] || t
 }
@@ -159,10 +161,10 @@ async function fetchEvents() {
     if (data.success) {
       events.value = data.events || []
     } else {
-      throw new Error(data.error || '未知错误')
+      throw new Error(data.error || 'Unknown error')
     }
   } catch (err) {
-    error.value = err.message || '网络请求失败'
+    error.value = err.message || 'Network request failed'
   } finally {
     loading.value = false
   }
@@ -175,7 +177,7 @@ function refresh() {
 
 function formatTimestamp(timestamp) {
   const date = new Date(timestamp * 1000)
-  return date.toLocaleString('zh-CN', {
+  return date.toLocaleString('en-US', {
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit'
   })
@@ -205,7 +207,7 @@ onUnmounted(() => {
   gap: 20px;
 }
 
-/* 筛选栏 */
+/* Filter bar */
 .filter-bar {
   display: flex;
   align-items: flex-end;
@@ -276,7 +278,7 @@ onUnmounted(() => {
   background: var(--color-accent-hover);
 }
 
-/* 错误 / 状态 */
+/* Error / state */
 .error-bar {
   display: flex;
   align-items: center;
@@ -302,7 +304,7 @@ onUnmounted(() => {
   color: var(--color-text-muted);
 }
 
-/* 事件网格 */
+/* Events grid */
 .events-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -399,7 +401,7 @@ onUnmounted(() => {
   margin-top: 8px;
 }
 
-/* 分页 */
+/* Pagination */
 .pagination {
   display: flex;
   justify-content: center;
@@ -424,7 +426,7 @@ onUnmounted(() => {
   color: var(--color-text-secondary);
 }
 
-/* 图片弹窗 */
+/* Image modal */
 .image-modal {
   position: fixed;
   inset: 0;

@@ -177,6 +177,8 @@ def handle_event_detected(
     metadata: Optional[Dict[str, Any]] = None,
     object_count: Optional[int] = None,
     objects: Optional[List[Dict[str, Any]]] = None,
+    lat_lng: Optional[str] = None,
+    location: Optional[str] = None,
 ) -> bool:
     """Persist a single event metadata document into MongoDB."""
     _ = minio_client  # kept in signature for caller compatibility
@@ -218,6 +220,8 @@ def handle_event_detected(
             "analysis_result": analysis_result,
             "analysis_summary": analysis_summary,
             "metadata": metadata,
+            "lat_lng": lat_lng,
+            "location": location,
         }
         for key, val in _optional.items():
             if val is not None:
@@ -243,6 +247,8 @@ def handle_event_detected(
                         "image_url": clean_url,
                         "description": description,
                         "object_count": object_count,
+                        "lat_lng": lat_lng,
+                        "location": location,
                     })
                 except Exception as wh_err:
                     logger.warning("Webhook notification failed: %s", wh_err)
@@ -269,6 +275,8 @@ def handle_frame_events(
     violations: List[Dict[str, Any]],
     zones: Optional[List[List[tuple]]] = None,
     event_type_override: Optional[str] = None,
+    lat_lng: Optional[str] = None,
+    location: Optional[str] = None,
 ) -> bool:
     """Save one aggregated event document for one frame."""
     if not violations:
@@ -296,6 +304,8 @@ def handle_frame_events(
             analysis_result=v.get("analysis_result"),
             analysis_summary=v.get("analysis_summary"),
             metadata=meta,
+            lat_lng=lat_lng,
+            location=location,
         )
 
     # Non-common-space: aggregate all detections into one document.
@@ -343,6 +353,8 @@ def handle_frame_events(
         metadata=meta,
         object_count=len(objects),
         objects=objects,
+        lat_lng=lat_lng,
+        location=location,
     )
 
     if ok:
@@ -364,6 +376,8 @@ def handle_smoke_flame_events(
     timestamp: float,
     frame_index: int,
     detections: List[Dict[str, Any]],
+    lat_lng: Optional[str] = None,
+    location: Optional[str] = None,
 ) -> bool:
     """Smoke/flame event save entry point."""
     return handle_frame_events(
@@ -375,6 +389,8 @@ def handle_smoke_flame_events(
         frame_index=frame_index,
         violations=detections,
         event_type_override="smoke_flame",
+        lat_lng=lat_lng,
+        location=location,
     )
 
 
@@ -387,6 +403,8 @@ def handle_parking_violation_events(
     frame_index: int,
     detections: List[Dict[str, Any]],
     zones: List[List[tuple]],
+    lat_lng: Optional[str] = None,
+    location: Optional[str] = None,
 ) -> bool:
     """Parking violation event save entry point."""
     return handle_frame_events(
@@ -399,6 +417,8 @@ def handle_parking_violation_events(
         violations=detections,
         zones=zones,
         event_type_override="parking_violation",
+        lat_lng=lat_lng,
+        location=location,
     )
 
 

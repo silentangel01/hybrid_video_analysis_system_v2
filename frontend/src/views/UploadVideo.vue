@@ -1,7 +1,7 @@
 <template>
   <div class="upload-page">
     <div class="upload-card">
-      <h3 class="card-title">上传视频文件</h3>
+      <h3 class="card-title">Upload Video</h3>
       <div class="card-body">
         <!-- 拖拽上传区域 -->
         <div
@@ -27,27 +27,27 @@
               <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <p class="drop-main-text">
-              {{ videoFile ? videoFile.name : '拖拽视频文件到此处' }}
+              {{ videoFile ? videoFile.name : 'Drag and drop video file here' }}
             </p>
             <p class="drop-sub-text">
-              {{ videoFile ? formatFileSize(videoFile.size) : '或点击选择文件（仅支持 .mp4）' }}
+              {{ videoFile ? formatFileSize(videoFile.size) : 'Or click to select a file (.mp4 only)' }}
             </p>
           </div>
         </div>
 
         <!-- 任务类型 -->
         <div class="form-row">
-          <label class="form-label">分析类型</label>
+          <label class="form-label">Analysis Type</label>
           <select v-model="selectedType" class="type-select">
-            <option value="parking">违停检测</option>
-            <option value="smoke_flame">烟火检测</option>
-            <option value="common_space">公共空间分析</option>
+            <option value="parking">Parking Violation</option>
+            <option value="smoke_flame">Smoke/Fire</option>
+            <option value="common_space">Common Space</option>
           </select>
         </div>
 
         <!-- 上传按钮 -->
         <button class="btn-upload" @click="uploadVideo" :disabled="!videoFile || uploading">
-          {{ uploading ? '上传中...' : '开始上传' }}
+          {{ uploading ? 'Uploading...' : 'Upload' }}
         </button>
 
         <!-- 提示信息 -->
@@ -87,7 +87,7 @@ function validateAndSet(file) {
   if (!file) return
   if (file.type !== 'video/mp4' && !file.name.endsWith('.mp4')) {
     videoFile.value = null
-    showMsg('请选择有效的 .mp4 视频文件', 'error')
+    showMsg('Please select a valid .mp4 video file', 'error')
     return
   }
   videoFile.value = file
@@ -126,18 +126,18 @@ async function uploadVideo() {
     try {
       result = JSON.parse(text)
     } catch {
-      throw new Error('无效的服务器响应')
+      throw new Error('Invalid server response')
     }
 
     if (result.success) {
-      showMsg('视频已上传，后端将自动分析...', 'success')
+      showMsg('Video uploaded, backend will analyze automatically...', 'success')
       videoFile.value = null
       if (fileInput.value) fileInput.value.value = ''
     } else {
-      showMsg('上传失败：' + (result.error || '未知错误'), 'error')
+      showMsg('Upload failed: ' + (result.error || 'Unknown error'), 'error')
     }
   } catch {
-    showMsg('网络错误：无法连接上传服务', 'error')
+    showMsg('Network error: cannot connect to upload service', 'error')
   } finally {
     uploading.value = false
   }

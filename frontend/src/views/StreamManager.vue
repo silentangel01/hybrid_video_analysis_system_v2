@@ -1,30 +1,48 @@
 <template>
   <div class="stream-manager">
-    <!-- 添加表单 -->
+    <!-- Add Stream Form -->
     <div class="form-card">
-      <h3 class="form-title">添加视频流</h3>
+      <h3 class="form-title">Add Stream</h3>
       <div class="form-body">
         <div class="form-row">
-          <label class="form-label">RTSP 地址</label>
+          <label class="form-label">RTSP URL</label>
           <input
             v-model="newUrl"
             type="text"
-            placeholder="例：rtsp://192.168.1.100:554/stream"
+            placeholder="e.g. rtsp://192.168.1.100:554/stream"
             class="form-input"
           />
         </div>
         <div class="form-row">
-          <label class="form-label">摄像头 ID</label>
+          <label class="form-label">Camera ID</label>
           <input
             v-model="newCameraId"
             type="text"
-            placeholder="例：east_gate_01"
+            placeholder="e.g. east_gate_01"
             class="form-input"
           />
-          <span class="form-hint">选择「违停检测」时必填，用于匹配禁停区域。</span>
+          <span class="form-hint">Required when "Parking Violation" is selected, used to match no-parking zones.</span>
         </div>
         <div class="form-row">
-          <label class="form-label">分析任务</label>
+          <label class="form-label">Latitude / Longitude</label>
+          <input
+            v-model="newLatLng"
+            type="text"
+            placeholder="e.g. 31.2304, 121.4737"
+            class="form-input"
+          />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Camera Location</label>
+          <input
+            v-model="newLocation"
+            type="text"
+            placeholder="e.g. East Gate Entrance"
+            class="form-input"
+          />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Analysis Tasks</label>
           <div class="task-checkboxes">
             <label class="checkbox-item" v-for="t in allTasks" :key="t.value">
               <input type="checkbox" :value="t.value" v-model="newTasks" />
@@ -33,33 +51,34 @@
           </div>
         </div>
         <div class="form-actions">
-          <button class="btn-accent" @click="addStream" :disabled="!canAddStream">添加视频流</button>
+          <button class="btn-accent" @click="addStream" :disabled="!canAddStream">Add Stream</button>
           <span v-if="message" :class="['msg', messageType]">{{ message }}</span>
         </div>
       </div>
     </div>
 
-    <!-- 视频流列表 -->
+    <!-- Stream List -->
     <div class="list-card">
-      <h3 class="form-title">视频流列表</h3>
+      <h3 class="form-title">Stream List</h3>
       <div v-if="streams.length > 0" class="stream-list">
         <div v-for="s in streams" :key="s.stream_id" class="stream-item">
-          <!-- 流基本信息行 -->
+          <!-- Stream basic info row -->
           <div class="stream-header">
             <div class="stream-basic">
               <span class="stream-id">{{ s.stream_id }}</span>
               <code class="camera-code">{{ s.camera_id || '-' }}</code>
+              <span v-if="s.location" class="location-tag" :title="s.lat_lng">{{ s.location }}</span>
               <span class="stream-url" :title="s.url">{{ s.url }}</span>
             </div>
             <div class="stream-right">
               <span :class="['status-tag', 'status-' + s.status]">{{ statusLabel(s.status) }}</span>
-              <button class="btn-sm btn-ghost" @click="toggleMetrics(s.stream_id)" :title="expanded.has(s.stream_id) ? '收起指标' : '展开指标'">
+              <button class="btn-sm btn-ghost" @click="toggleMetrics(s.stream_id)" :title="expanded.has(s.stream_id) ? 'Collapse' : 'Expand'">
                 <svg :class="{ 'chevron-open': expanded.has(s.stream_id) }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
               </button>
             </div>
           </div>
 
-          <!-- 任务标签 + 操作 -->
+          <!-- Task tags + actions -->
           <div class="stream-tags-row">
             <div class="stream-tags">
               <template v-if="editing === s.stream_id">
@@ -74,21 +93,21 @@
             </div>
             <div class="stream-actions">
               <template v-if="editing === s.stream_id">
-                <button class="btn-sm btn-success" @click="saveTasks(s.stream_id)">保存</button>
-                <button class="btn-sm btn-muted" @click="editing = null">取消</button>
+                <button class="btn-sm btn-success" @click="saveTasks(s.stream_id)">Save</button>
+                <button class="btn-sm btn-muted" @click="editing = null">Cancel</button>
               </template>
               <template v-else>
-                <button class="btn-sm btn-outline" @click="startEdit(s)">编辑</button>
-                <button class="btn-sm btn-danger" @click="removeStream(s.stream_id)">删除</button>
+                <button class="btn-sm btn-outline" @click="startEdit(s)">Edit</button>
+                <button class="btn-sm btn-danger" @click="removeStream(s.stream_id)">Delete</button>
               </template>
             </div>
           </div>
 
-          <!-- 性能指标面板（可展开） -->
+          <!-- Metrics panel (expandable) -->
           <div v-if="expanded.has(s.stream_id) && s.metrics" class="metrics-panel">
-            <!-- 采集指标 -->
+            <!-- Capture metrics -->
             <div v-if="s.metrics.capture" class="metrics-section">
-              <h4 class="metrics-section-title">采集</h4>
+              <h4 class="metrics-section-title">Capture</h4>
               <div class="metrics-grid">
                 <div class="metric-item">
                   <span class="metric-label">capture</span>
@@ -123,9 +142,9 @@
               </div>
             </div>
 
-            <!-- 执行器指标 -->
+            <!-- Executor metrics -->
             <div v-if="s.metrics.executor" class="metrics-section">
-              <h4 class="metrics-section-title">执行器</h4>
+              <h4 class="metrics-section-title">Executor</h4>
               <div class="metrics-grid">
                 <div class="metric-item">
                   <span class="metric-label">framequeue</span>
@@ -156,9 +175,9 @@
               </div>
             </div>
 
-            <!-- 烟火检测指标 -->
+            <!-- Smoke/Fire Detection metrics -->
             <div v-if="s.metrics.tasks?.smoke_flame" class="metrics-section">
-              <h4 class="metrics-section-title">烟火检测</h4>
+              <h4 class="metrics-section-title">Smoke/Fire Detection</h4>
               <div class="metrics-grid">
                 <div class="metric-item">
                   <span class="metric-label">yolo</span>
@@ -193,9 +212,9 @@
               </div>
             </div>
 
-            <!-- 违停检测指标 -->
+            <!-- Parking Violation metrics -->
             <div v-if="s.metrics.tasks?.parking_violation" class="metrics-section">
-              <h4 class="metrics-section-title">违停检测</h4>
+              <h4 class="metrics-section-title">Parking Violation</h4>
               <div class="metrics-grid">
                 <div class="metric-item">
                   <span class="metric-label">yolo</span>
@@ -226,9 +245,9 @@
               </div>
             </div>
 
-            <!-- 公共空间分析指标 -->
+            <!-- Common Space Analysis metrics -->
             <div v-if="s.metrics.tasks?.common_space" class="metrics-section">
-              <h4 class="metrics-section-title">公共空间分析</h4>
+              <h4 class="metrics-section-title">Common Space Analysis</h4>
               <div class="metrics-grid">
                 <div class="metric-item">
                   <span class="metric-label">analysis</span>
@@ -259,22 +278,22 @@
               </div>
             </div>
 
-            <!-- 瓶颈提示 -->
+            <!-- Bottleneck hints -->
             <div v-if="s.bottleneck_hints?.length" class="metrics-section">
-              <h4 class="metrics-section-title warn-title">瓶颈提示</h4>
+              <h4 class="metrics-section-title warn-title">Bottleneck Hints</h4>
               <div class="bottleneck-list">
                 <span v-for="(hint, i) in s.bottleneck_hints" :key="i" class="bottleneck-item">{{ hint }}</span>
               </div>
             </div>
           </div>
 
-          <!-- 无指标数据时 -->
+          <!-- No metrics data -->
           <div v-else-if="expanded.has(s.stream_id) && !s.metrics" class="metrics-panel">
-            <div class="metrics-empty">暂无性能指标数据</div>
+            <div class="metrics-empty">No metrics data available</div>
           </div>
         </div>
       </div>
-      <div v-else class="empty-state">暂无活跃视频流，请在上方添加。</div>
+      <div v-else class="empty-state">No active streams. Add one above.</div>
     </div>
   </div>
 </template>
@@ -287,6 +306,8 @@ const API = 'http://localhost:5000'
 const streams = ref([])
 const newUrl = ref('')
 const newCameraId = ref('')
+const newLatLng = ref('')
+const newLocation = ref('')
 const newTasks = ref([])
 const message = ref('')
 const messageType = ref('success')
@@ -295,9 +316,9 @@ const editTasks = ref([])
 const expanded = ref(new Set())
 
 const allTasks = [
-  { value: 'parking_violation', label: '违停检测' },
-  { value: 'smoke_flame', label: '烟火检测' },
-  { value: 'common_space', label: '公共空间分析' }
+  { value: 'parking_violation', label: 'Parking Violation' },
+  { value: 'smoke_flame', label: 'Smoke/Fire' },
+  { value: 'common_space', label: 'Common Space' }
 ]
 
 const requiresCameraId = computed(() => newTasks.value.includes('parking_violation'))
@@ -310,13 +331,11 @@ const canAddStream = computed(() => {
 
 let pollTimer = null
 
-// 格式化浮点数（保留1位小数）
 function f(v) {
   if (v == null) return '0.0'
   return Number(v).toFixed(1)
 }
 
-// 格式化整数
 function n(v) {
   if (v == null) return '0'
   return Number(v).toLocaleString()
@@ -324,19 +343,19 @@ function n(v) {
 
 function taskLabel(t) {
   const map = {
-    parking_violation: '违停检测',
-    smoke_flame: '烟火检测',
-    common_space: '公共空间分析'
+    parking_violation: 'Parking Violation',
+    smoke_flame: 'Smoke/Fire',
+    common_space: 'Common Space'
   }
   return map[t] || t
 }
 
 function statusLabel(s) {
   const map = {
-    running: '运行中',
-    connecting: '连接中',
-    stopped: '已停止',
-    error: '异常'
+    running: 'Running',
+    connecting: 'Connecting',
+    stopped: 'Stopped',
+    error: 'Error'
   }
   return map[s] || s
 }
@@ -360,7 +379,7 @@ async function fetchStreams() {
     const res = await fetch(`${API}/api/streams`)
     if (res.ok) streams.value = await res.json()
   } catch {
-    // 静默处理
+    // silent
   }
 }
 
@@ -369,7 +388,7 @@ async function addStream() {
   const cameraId = newCameraId.value.trim()
   if (!url || newTasks.value.length === 0) return
   if (requiresCameraId.value && !cameraId) {
-    showMsg('违停检测需要填写摄像头 ID', 'error')
+    showMsg('Camera ID is required for Parking Violation', 'error')
     return
   }
 
@@ -377,20 +396,28 @@ async function addStream() {
     const res = await fetch(`${API}/api/streams`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, tasks: newTasks.value, camera_id: cameraId })
+      body: JSON.stringify({
+        url,
+        tasks: newTasks.value,
+        camera_id: cameraId,
+        lat_lng: newLatLng.value.trim(),
+        location: newLocation.value.trim()
+      })
     })
     const data = await res.json()
     if (res.ok) {
-      showMsg(`已添加 ${data.stream_id}`)
+      showMsg(`Added ${data.stream_id}`)
       newUrl.value = ''
       newCameraId.value = ''
+      newLatLng.value = ''
+      newLocation.value = ''
       newTasks.value = []
       await fetchStreams()
     } else {
-      showMsg(data.error || '添加失败', 'error')
+      showMsg(data.error || 'Failed to add', 'error')
     }
   } catch {
-    showMsg('网络错误', 'error')
+    showMsg('Network error', 'error')
   }
 }
 
@@ -398,13 +425,13 @@ async function removeStream(id) {
   try {
     const res = await fetch(`${API}/api/streams/${id}`, { method: 'DELETE' })
     if (res.ok) {
-      showMsg(`已删除 ${id}`)
+      showMsg(`Removed ${id}`)
       await fetchStreams()
     } else {
-      showMsg('删除失败', 'error')
+      showMsg('Failed to remove', 'error')
     }
   } catch {
-    showMsg('网络错误', 'error')
+    showMsg('Network error', 'error')
   }
 }
 
@@ -415,7 +442,7 @@ function startEdit(s) {
 
 async function saveTasks(id) {
   if (editTasks.value.length === 0) {
-    showMsg('请至少选择一个任务', 'error')
+    showMsg('Select at least one task', 'error')
     return
   }
   try {
@@ -425,14 +452,14 @@ async function saveTasks(id) {
       body: JSON.stringify({ tasks: editTasks.value })
     })
     if (res.ok) {
-      showMsg(`已更新 ${id}`)
+      showMsg(`Updated ${id}`)
       editing.value = null
       await fetchStreams()
     } else {
-      showMsg('更新失败', 'error')
+      showMsg('Failed to update', 'error')
     }
   } catch {
-    showMsg('网络错误', 'error')
+    showMsg('Network error', 'error')
   }
 }
 
@@ -551,7 +578,7 @@ onUnmounted(() => {
   color: var(--color-danger);
 }
 
-/* 流列表 */
+/* Stream list */
 .stream-list {
   display: flex;
   flex-direction: column;
@@ -592,6 +619,15 @@ onUnmounted(() => {
   color: var(--color-text-secondary);
   background: var(--color-bg-tertiary);
   padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.location-tag {
+  font-size: 12px;
+  color: var(--color-success);
+  background: rgba(34, 197, 94, 0.1);
+  padding: 2px 8px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
 }
@@ -664,7 +700,7 @@ onUnmounted(() => {
   transform: rotate(180deg);
 }
 
-/* 任务标签行 */
+/* Task tag row */
 .stream-tags-row {
   display: flex;
   align-items: center;
@@ -741,7 +777,7 @@ onUnmounted(() => {
   color: var(--color-text-secondary);
 }
 
-/* 性能指标面板 */
+/* Metrics panel */
 .metrics-panel {
   margin-top: 12px;
   background: var(--color-bg-primary);

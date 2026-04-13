@@ -62,6 +62,8 @@ def add_stream():
     url = data.get("url", "").strip()
     tasks = data.get("tasks", [])
     camera_id = data.get("camera_id", "").strip()
+    lat_lng = data.get("lat_lng", "").strip()
+    location = data.get("location", "").strip()
 
     if not url:
         return jsonify({"error": "url is required"}), 400
@@ -69,7 +71,7 @@ def add_stream():
         return jsonify({"error": "tasks must be a non-empty list"}), 400
 
     try:
-        stream_id = _stream_manager.add_stream(url, tasks, camera_id=camera_id or None)
+        stream_id = _stream_manager.add_stream(url, tasks, camera_id=camera_id or None, lat_lng=lat_lng, location=location)
         return jsonify({
             "stream_id": stream_id,
             "url": url,

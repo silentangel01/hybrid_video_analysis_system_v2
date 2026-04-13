@@ -1,6 +1,6 @@
 <template>
   <div class="dashboard">
-    <!-- 统计卡片 -->
+    <!-- Stat cards -->
     <div class="stat-row">
       <div class="stat-card">
         <div class="stat-icon stat-icon--blue">
@@ -10,7 +10,7 @@
         </div>
         <div class="stat-info">
           <span class="stat-value">{{ stats.activeStreams }}</span>
-          <span class="stat-label">活跃视频流</span>
+          <span class="stat-label">Active Streams</span>
         </div>
       </div>
       <div class="stat-card">
@@ -21,7 +21,7 @@
         </div>
         <div class="stat-info">
           <span class="stat-value">{{ stats.todayEvents }}</span>
-          <span class="stat-label">今日事件</span>
+          <span class="stat-label">Today's Events</span>
         </div>
       </div>
       <div class="stat-card">
@@ -32,38 +32,39 @@
         </div>
         <div class="stat-info">
           <span class="stat-value">{{ stats.fireAlerts }}</span>
-          <span class="stat-label">烟火告警</span>
+          <span class="stat-label">Fire Alerts</span>
         </div>
       </div>
     </div>
 
-    <!-- 双栏面板 -->
+    <!-- Two-column panels -->
     <div class="panel-row">
-      <!-- 最近事件 -->
+      <!-- Recent Events -->
       <div class="panel">
         <div class="panel-header">
-          <h3>最近事件</h3>
-          <router-link to="/events" class="panel-link">查看全部</router-link>
+          <h3>Recent Events</h3>
+          <router-link to="/events" class="panel-link">View All</router-link>
         </div>
         <div class="panel-body">
-          <div v-if="recentEvents.length === 0" class="panel-empty">暂无事件</div>
+          <div v-if="recentEvents.length === 0" class="panel-empty">No events</div>
           <div v-for="evt in recentEvents" :key="evt._id" class="event-row">
             <span class="event-type-dot" :class="'dot-' + evt.event_type"></span>
             <span class="event-type-text">{{ typeLabel(evt.event_type) }}</span>
             <span class="event-camera">{{ evt.camera_id }}</span>
+            <span v-if="evt.location" class="event-location">{{ evt.location }}</span>
             <span class="event-time">{{ formatTime(evt.timestamp) }}</span>
           </div>
         </div>
       </div>
 
-      <!-- 视频流状态 -->
+      <!-- Stream Status -->
       <div class="panel">
         <div class="panel-header">
-          <h3>视频流状态</h3>
-          <router-link to="/streams" class="panel-link">管理</router-link>
+          <h3>Stream Status</h3>
+          <router-link to="/streams" class="panel-link">Manage</router-link>
         </div>
         <div class="panel-body">
-          <div v-if="streams.length === 0" class="panel-empty">暂无视频流</div>
+          <div v-if="streams.length === 0" class="panel-empty">No streams</div>
           <template v-for="s in streams" :key="s.stream_id">
             <div class="stream-row">
               <span :class="['status-dot', 'dot-status-' + s.status]"></span>
@@ -99,23 +100,23 @@ const streams = ref([])
 let refreshTimer = null
 
 function typeLabel(t) {
-  const map = { smoke_flame: '烟火告警', parking_violation: '违停检测', common_space_utilization: '空间分析' }
+  const map = { smoke_flame: 'Smoke/Fire', parking_violation: 'Parking Violation', common_space_utilization: 'Space Analysis' }
   return map[t] || t
 }
 
 function taskLabel(t) {
-  const map = { parking_violation: '违停', smoke_flame: '烟火', common_space: '空间' }
+  const map = { parking_violation: 'Parking', smoke_flame: 'Smoke', common_space: 'Space' }
   return map[t] || t
 }
 
 function statusLabel(s) {
-  const map = { running: '运行中', connecting: '连接中', stopped: '已停止', error: '异常' }
+  const map = { running: 'Running', connecting: 'Connecting', stopped: 'Stopped', error: 'Error' }
   return map[s] || s
 }
 
 function formatTime(ts) {
   const d = new Date(ts * 1000)
-  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 function fmtF(v) {
@@ -129,20 +130,17 @@ function fmtN(v) {
 }
 
 async function fetchAll() {
-  // 并行获取
   const [streamsRes, eventsRes] = await Promise.allSettled([
     fetch('http://localhost:5000/api/streams').then(r => r.ok ? r.json() : []),
     fetch('http://localhost:8080/api/events-all').then(r => r.ok ? r.json() : { success: false })
   ])
 
-  // 视频流
   if (streamsRes.status === 'fulfilled') {
     const data = streamsRes.value
     streams.value = Array.isArray(data) ? data : []
     stats.value.activeStreams = streams.value.filter(s => s.status === 'running').length
   }
 
-  // 事件
   if (eventsRes.status === 'fulfilled' && eventsRes.value.success) {
     const allEvents = eventsRes.value.events || []
     recentEvents.value = allEvents.slice(0, 5)
@@ -175,7 +173,7 @@ onUnmounted(() => {
   gap: 24px;
 }
 
-/* 统计卡片 */
+/* Stat cards */
 .stat-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -233,7 +231,7 @@ onUnmounted(() => {
   color: var(--color-text-secondary);
 }
 
-/* 双栏面板 */
+/* Two-column panels */
 .panel-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -280,7 +278,7 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
-/* 事件行 */
+/* Event row */
 .event-row {
   display: flex;
   align-items: center;
@@ -319,13 +317,22 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.event-location {
+  font-size: 11px;
+  color: var(--color-success);
+  background: rgba(34, 197, 94, 0.1);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
 .event-time {
   font-size: 12px;
   color: var(--color-text-muted);
   white-space: nowrap;
 }
 
-/* 视频流行 */
+/* Stream row */
 .stream-row {
   display: flex;
   align-items: center;
@@ -382,7 +389,7 @@ onUnmounted(() => {
 .text-stopped { color: var(--color-text-muted); }
 .text-error { color: var(--color-danger); }
 
-/* 流性能指标行 */
+/* Stream metrics row */
 .stream-metrics-row {
   display: flex;
   gap: 12px;

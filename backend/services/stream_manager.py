@@ -48,7 +48,7 @@ class StreamManager:
     # Public API
     # ------------------------------------------------------------------
 
-    def add_stream(self, url: str, tasks: List[str], camera_id: Optional[str] = None) -> str:
+    def add_stream(self, url: str, tasks: List[str], camera_id: Optional[str] = None, lat_lng: str = "", location: str = "") -> str:
         """Add a new RTSP stream. Returns stream_id."""
         tasks = [t for t in tasks if t in self.VALID_TASKS]
         if not tasks:
@@ -72,6 +72,8 @@ class StreamManager:
             tasks=tasks,
             camera_id=camera_id or stream_id,
             created_at=time.time(),
+            lat_lng=lat_lng,
+            location=location,
         )
 
         with self.lock:
@@ -126,6 +128,8 @@ class StreamManager:
             tasks=tasks,
             camera_id=current.camera_id,
             created_at=current.created_at,
+            lat_lng=current.lat_lng,
+            location=current.location,
         )
         new_runtime.status = "switching"
 
@@ -187,6 +191,8 @@ class StreamManager:
                     "tasks": runtime.tasks,
                     "camera_id": runtime.camera_id,
                     "status": runtime.status,
+                    "lat_lng": runtime.lat_lng,
+                    "location": runtime.location,
                     "last_error": stream_detail.get("last_error"),
                     "retry_count": stream_detail.get("retry_count", 0),
                     "last_connected_at": stream_detail.get("last_connected_at"),
@@ -331,6 +337,8 @@ class StreamManager:
                     "tasks": runtime.tasks,
                     "camera_id": runtime.camera_id,
                     "created_at": runtime.created_at,
+                    "lat_lng": runtime.lat_lng,
+                    "location": runtime.location,
                 }},
                 upsert=True,
             )
@@ -361,6 +369,8 @@ class StreamManager:
                 tasks = doc.get("tasks", [])
                 camera_id = doc.get("camera_id", sid)
                 created = doc.get("created_at", time.time())
+                lat_lng = doc.get("lat_lng", "")
+                location = doc.get("location", "")
                 if not url or not tasks:
                     continue
 
@@ -370,6 +380,7 @@ class StreamManager:
                     runtime = self.runtime_factory.create_runtime(
                         stream_id=sid, url=url, tasks=tasks,
                         camera_id=camera_id, created_at=created,
+                        lat_lng=lat_lng, location=location,
                     )
                 except Exception as e:
                     logger.error("[StreamManager] Skip restoring %s: %s", sid, e)

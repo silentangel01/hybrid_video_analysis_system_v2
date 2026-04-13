@@ -39,6 +39,8 @@ logger = logging.getLogger(__name__)
 class SmokeFlameDetectionService:
     """Two-stage smoke/flame detection with YOLO + Qwen-VL verification."""
 
+    EVENT_COOLDOWN_SEC = 30.0  # min seconds between saved events per source
+
     def __init__(self):
         self.minio_client: Optional[MinIOClient] = None
         self.mongo_client: Optional[MongoDBClient] = None
@@ -52,6 +54,10 @@ class SmokeFlameDetectionService:
         self.frame_skip = 2  # process 1 frame every 3 (capture already samples to ~1 fps)
         self.last_processed_frame: Dict[str, int] = {}
         self.detection_cache: Dict[str, Any] = {}
+        self._last_event_time: Dict[str, float] = {}  # per-source cooldown tracker
+        # Location metadata (set by StreamRuntimeFactory)
+        self.lat_lng: str = ""
+        self.location: str = ""
 
         # Metrics
         self.metrics_lock = threading.Lock()
@@ -366,6 +372,14 @@ class SmokeFlameDetectionService:
         save_started = time.perf_counter()
         try:
             source_id = frame_meta.source_id
+
+            # Per-source cooldown to prevent flooding the DB
+            now = time.time()
+            last = self._last_event_time.get(source_id, 0.0)
+            if now - last < self.EVENT_COOLDOWN_SEC:
+                logger.debug("Smoke cooldown active for %s (%.1fs left)", source_id, self.EVENT_COOLDOWN_SEC - (now - last))
+                return
+
             image = frame_meta.image
 
             validated = self._validate_bboxes(detections, image.shape)
@@ -392,9 +406,12 @@ class SmokeFlameDetectionService:
                 frame_index=frame_meta.frame_index,
                 violations=validated,
                 event_type_override="smoke_flame",
+                lat_lng=self.lat_lng or None,
+                location=self.location or None,
             )
 
             if ok:
+                self._last_event_time[source_id] = time.time()
                 self.event_counter.add()
                 with self.metrics_lock:
                     self.events_saved_total += 1
