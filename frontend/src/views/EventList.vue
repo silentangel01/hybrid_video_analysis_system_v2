@@ -6,9 +6,8 @@
         <label class="filter-label">事件类型</label>
         <select v-model="filterType" class="filter-select">
           <option value="">全部类型</option>
-          <option value="fire">火焰</option>
-          <option value="smoke">烟雾</option>
-          <option value="car">车辆</option>
+          <option value="smoke_flame">烟火告警</option>
+          <option value="parking_violation">违停检测</option>
           <option value="common_space_utilization">空间分析</option>
         </select>
       </div>
@@ -62,7 +61,7 @@
           <p><span class="detail-label">描述：</span>{{ event.description }}</p>
         </div>
 
-        <div v-if="event.event_type === 'car' && event.description?.includes('no-parking')" class="violation-tag">违停</div>
+        <div v-if="event.event_type === 'parking_violation'" class="violation-tag">违停</div>
 
         <div v-if="event.image_url" class="image-preview">
           <img
@@ -115,9 +114,8 @@ let refreshInterval = null
 
 function typeLabel(t) {
   const map = {
-    fire: '火焰',
-    smoke: '烟雾',
-    car: '车辆',
+    smoke_flame: '烟火告警',
+    parking_violation: '违停检测',
     common_space_utilization: '空间分析'
   }
   return map[t] || t
@@ -337,17 +335,12 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.type-fire {
+.type-smoke_flame {
   background: rgba(239, 68, 68, 0.15);
   color: var(--color-danger);
 }
 
-.type-smoke {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--color-warning);
-}
-
-.type-car {
+.type-parking_violation {
   background: rgba(59, 130, 246, 0.15);
   color: var(--color-accent);
 }

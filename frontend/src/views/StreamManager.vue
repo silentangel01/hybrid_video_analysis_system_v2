@@ -53,8 +53,8 @@
             </div>
             <div class="stream-right">
               <span :class="['status-tag', 'status-' + s.status]">{{ statusLabel(s.status) }}</span>
-              <button class="btn-sm btn-ghost" @click="toggleMetrics(s.stream_id)" :title="expanded === s.stream_id ? '收起指标' : '展开指标'">
-                <svg :class="{ 'chevron-open': expanded === s.stream_id }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+              <button class="btn-sm btn-ghost" @click="toggleMetrics(s.stream_id)" :title="expanded.has(s.stream_id) ? '收起指标' : '展开指标'">
+                <svg :class="{ 'chevron-open': expanded.has(s.stream_id) }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
               </button>
             </div>
           </div>
@@ -85,7 +85,7 @@
           </div>
 
           <!-- 性能指标面板（可展开） -->
-          <div v-if="expanded === s.stream_id && s.metrics" class="metrics-panel">
+          <div v-if="expanded.has(s.stream_id) && s.metrics" class="metrics-panel">
             <!-- 采集指标 -->
             <div v-if="s.metrics.capture" class="metrics-section">
               <h4 class="metrics-section-title">采集</h4>
@@ -269,7 +269,7 @@
           </div>
 
           <!-- 无指标数据时 -->
-          <div v-else-if="expanded === s.stream_id && !s.metrics" class="metrics-panel">
+          <div v-else-if="expanded.has(s.stream_id) && !s.metrics" class="metrics-panel">
             <div class="metrics-empty">暂无性能指标数据</div>
           </div>
         </div>
@@ -292,7 +292,7 @@ const message = ref('')
 const messageType = ref('success')
 const editing = ref(null)
 const editTasks = ref([])
-const expanded = ref(null)
+const expanded = ref(new Set())
 
 const allTasks = [
   { value: 'parking_violation', label: '违停检测' },
@@ -342,7 +342,11 @@ function statusLabel(s) {
 }
 
 function toggleMetrics(id) {
-  expanded.value = expanded.value === id ? null : id
+  if (expanded.value.has(id)) {
+    expanded.value.delete(id)
+  } else {
+    expanded.value.add(id)
+  }
 }
 
 function showMsg(text, type = 'success') {

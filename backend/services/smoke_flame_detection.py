@@ -46,8 +46,8 @@ class SmokeFlameDetectionService:
         self.yolo_model = None
         self.qwen_vl_client = None
 
-        self.detection_pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="smoke-detect")
-        self.verification_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="smoke-verify")
+        self.detection_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="smoke-detect")
+        self.verification_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="smoke-verify")
 
         self.frame_skip = 23  # process 1 frame every 24 frames
         self.last_processed_frame: Dict[str, int] = {}

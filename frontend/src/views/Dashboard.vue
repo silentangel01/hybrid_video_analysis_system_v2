@@ -64,14 +64,25 @@
         </div>
         <div class="panel-body">
           <div v-if="streams.length === 0" class="panel-empty">暂无视频流</div>
-          <div v-for="s in streams" :key="s.stream_id" class="stream-row">
-            <span :class="['status-dot', 'dot-status-' + s.status]"></span>
-            <span class="stream-id">{{ s.stream_id }}</span>
-            <span class="stream-tasks">
-              <span v-for="t in s.tasks" :key="t" class="mini-tag">{{ taskLabel(t) }}</span>
-            </span>
-            <span :class="['stream-status', 'text-' + s.status]">{{ statusLabel(s.status) }}</span>
-          </div>
+          <template v-for="s in streams" :key="s.stream_id">
+            <div class="stream-row">
+              <span :class="['status-dot', 'dot-status-' + s.status]"></span>
+              <span class="stream-id">{{ s.stream_id }}</span>
+              <span class="stream-tasks">
+                <span v-for="t in s.tasks" :key="t" class="mini-tag">{{ taskLabel(t) }}</span>
+              </span>
+              <span :class="['stream-status', 'text-' + s.status]">{{ statusLabel(s.status) }}</span>
+            </div>
+            <div v-if="s.metrics" class="stream-metrics-row">
+              <span class="sm-item">cap <b>{{ fmtF(s.metrics.capture?.capture_fps_10s) }}</b> fps</span>
+              <span class="sm-item">emit <b>{{ fmtF(s.metrics.capture?.emit_fps_10s) }}</b> fps</span>
+              <span class="sm-item">queue <b>{{ fmtN(s.metrics.executor?.queue_size) }}</b></span>
+              <span class="sm-item">inflight <b>{{ fmtN(s.metrics.executor?.inflight_tasks) }}</b></span>
+            </div>
+            <div v-if="s.bottleneck_hints?.length" class="stream-bottleneck-row">
+              <span v-for="(hint, i) in s.bottleneck_hints" :key="i" class="bottleneck-text">{{ hint }}</span>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -88,7 +99,7 @@ const streams = ref([])
 let refreshTimer = null
 
 function typeLabel(t) {
-  const map = { fire: '火焰', smoke: '烟雾', car: '车辆', common_space_utilization: '空间分析' }
+  const map = { smoke_flame: '烟火告警', parking_violation: '违停检测', common_space_utilization: '空间分析' }
   return map[t] || t
 }
 
@@ -105,6 +116,16 @@ function statusLabel(s) {
 function formatTime(ts) {
   const d = new Date(ts * 1000)
   return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function fmtF(v) {
+  if (v == null) return '0.0'
+  return Number(v).toFixed(1)
+}
+
+function fmtN(v) {
+  if (v == null) return '0'
+  return String(Number(v))
 }
 
 async function fetchAll() {
@@ -132,14 +153,14 @@ async function fetchAll() {
 
     stats.value.todayEvents = allEvents.filter(e => e.timestamp >= todayCutoff).length
     stats.value.fireAlerts = allEvents.filter(e =>
-      e.timestamp >= todayCutoff && (e.event_type === 'fire' || e.event_type === 'smoke')
+      e.timestamp >= todayCutoff && e.event_type === 'smoke_flame'
     ).length
   }
 }
 
 onMounted(() => {
   fetchAll()
-  refreshTimer = setInterval(fetchAll, 15000)
+  refreshTimer = setInterval(fetchAll, 5000)
 })
 
 onUnmounted(() => {
@@ -279,9 +300,8 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.dot-fire { background: var(--color-danger); }
-.dot-smoke { background: var(--color-warning); }
-.dot-car { background: var(--color-accent); }
+.dot-smoke_flame { background: var(--color-danger); }
+.dot-parking_violation { background: var(--color-accent); }
 .dot-common_space_utilization { background: var(--color-success); }
 
 .event-type-text {
@@ -361,4 +381,36 @@ onUnmounted(() => {
 .text-connecting { color: var(--color-warning); }
 .text-stopped { color: var(--color-text-muted); }
 .text-error { color: var(--color-danger); }
+
+/* 流性能指标行 */
+.stream-metrics-row {
+  display: flex;
+  gap: 12px;
+  padding: 2px 20px 6px 38px;
+  flex-wrap: wrap;
+}
+
+.sm-item {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-family: "Cascadia Code", "JetBrains Mono", monospace;
+}
+
+.sm-item b {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.stream-bottleneck-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 20px 6px 38px;
+}
+
+.bottleneck-text {
+  font-size: 11px;
+  color: var(--color-danger);
+  font-weight: 500;
+}
 </style>
