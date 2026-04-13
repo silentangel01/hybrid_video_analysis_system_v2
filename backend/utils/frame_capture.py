@@ -23,7 +23,6 @@ from urllib.parse import urlparse
 
 from backend.utils.performance_metrics import SlidingCounter
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -119,6 +118,7 @@ class VideoFrameCapture:
                 "disconnect_count": 0,
                 "consecutive_open_failures": 0,
                 "last_batch_size": 0,
+                "frames_skipped_total": 0,
             }
 
     def _with_source_perf(self, source_id: str) -> Dict[str, Any]:
@@ -160,6 +160,7 @@ class VideoFrameCapture:
             "disconnect_count": perf["disconnect_count"],
             "consecutive_open_failures": perf["consecutive_open_failures"],
             "last_batch_size": perf["last_batch_size"],
+            "frames_skipped_total": perf.get("frames_skipped_total", 0),
         }
 
     def add_rtsp_source(
@@ -169,8 +170,16 @@ class VideoFrameCapture:
         batch_size: int = 1,
         batch_sec: float = 1.0,
         reconnect_delay: int = 5,
+        sample_interval_sec: float = 1.0,
     ):
-        """Add an RTSP source and start its capture thread."""
+        """Add an RTSP source and start its capture thread.
+
+        Args:
+            sample_interval_sec: Minimum seconds between frames that enter the
+                processing pipeline.  The capture thread still calls cap.read()
+                at the native frame-rate to keep the RTSP buffer drained, but
+                only frames spaced at least this far apart are forwarded.
+        """
         if source_id in self.sources:
             logger.warning(f"[{source_id}] Already exists.")
             return
@@ -187,7 +196,7 @@ class VideoFrameCapture:
         )
         thread = threading.Thread(
             target=self._rtsp_loop,
-            args=(source_id, rtsp_url, batch_size, batch_sec, reconnect_delay),
+            args=(source_id, rtsp_url, batch_size, batch_sec, reconnect_delay, sample_interval_sec),
             daemon=True,
         )
         self.sources[source_id] = thread
@@ -235,13 +244,21 @@ class VideoFrameCapture:
         batch_size: int,
         batch_sec: float,
         reconnect_delay: int,
+        sample_interval_sec: float = 1.0,
     ):
-        """Capture RTSP frames and emit them in batches."""
+        """Capture RTSP frames and emit them in batches.
+
+        Every frame is read (to keep the RTSP buffer drained), but only
+        frames spaced >= *sample_interval_sec* apart are forwarded into
+        the processing pipeline.
+        """
         buffer = FrameBuffer(source_id, batch_size, batch_sec)
         perf = self._with_source_perf(source_id)
         frame_idx = 0
+        last_sample_time = 0.0
+        frames_skipped = 0
 
-        logger.debug(f"[{source_id}] RTSP capture started: {url}")
+        logger.debug(f"[{source_id}] RTSP capture started: {url} (sample_interval={sample_interval_sec}s)")
 
         while self.running:
             self._set_source_detail(source_id, status="connecting")
@@ -279,8 +296,22 @@ class VideoFrameCapture:
                 frame_idx += 1
                 perf["read_counter"].add()
 
-                # RTSP streams should use the current wall-clock time.
                 current_time = time.time()
+
+                # Always update last_frame_at so liveness checks stay fresh.
+                self._set_source_detail(
+                    source_id,
+                    status="running",
+                    last_error=None,
+                    last_frame_at=current_time,
+                )
+
+                # --- Time-based sampling ---
+                if current_time - last_sample_time < sample_interval_sec:
+                    frames_skipped += 1
+                    continue
+                last_sample_time = current_time
+
                 current_dt = datetime.fromtimestamp(current_time)
 
                 meta = FrameWithMetadata(
@@ -292,21 +323,15 @@ class VideoFrameCapture:
                     is_rtsp=True,
                 )
 
-                # Emit a lightweight debug sample every 30 frames.
+                # Emit a lightweight debug sample every 30 *sampled* frames.
                 if frame_idx % 30 == 1:
                     logger.debug(
-                        f"[{source_id}] Frame {frame_idx} - "
+                        f"[{source_id}] Frame {frame_idx} (skipped {frames_skipped}) - "
                         f"System time: {current_dt} | "
                         f"Timestamp: {current_time}"
                     )
 
                 batch = buffer.add(meta)
-                self._set_source_detail(
-                    source_id,
-                    status="running",
-                    last_error=None,
-                    last_frame_at=current_time,
-                )
                 if batch and self._callback:
                     perf["emit_counter"].add(len(batch))
                     perf["batch_counter"].add()
@@ -428,29 +453,6 @@ class VideoFrameCapture:
             logger.debug(f"[{source_id}] Local video looping...")
             time.sleep(1)
 
-    # -------------------- Timestamp Debug Helper --------------------
-    def debug_timestamp_issue(self, source_id: str):
-        """Print timestamp diagnostics for a specific source."""
-        if source_id not in self.sources:
-            logger.error(f"[{source_id}] Source not found for debugging")
-            return
-
-        current_time = time.time()
-        current_dt = datetime.now()
-
-        logger.debug(f"=== Timestamp debug [{source_id}] ===")
-        logger.debug(f"Current system time: {current_dt}")
-        logger.debug(f"Current Unix timestamp: {current_time}")
-        logger.debug(f"As datetime: {datetime.fromtimestamp(current_time)}")
-
-        # Example timestamp used to compare against the current clock.
-        test_timestamp = 1761401166.298111
-        if test_timestamp > current_time:
-            logger.warning(f"Detected a future timestamp: {test_timestamp}")
-            logger.warning(f"Corresponding datetime: {datetime.fromtimestamp(test_timestamp)}")
-        else:
-            logger.debug(f"Timestamp {test_timestamp} is not in the future")
-
     # -------------------- Graceful Shutdown --------------------
     def stop_all(self):
         """Stop all capture threads."""
@@ -485,57 +487,3 @@ class VideoFrameCapture:
                 detail["status"] = "stopped"
             details[source_id] = detail
         return details
-
-
-# -------------------- Quick Demo --------------------
-if __name__ == "__main__":
-    def demo_batch_callback(src_id: str, frames: List[FrameWithMetadata]):
-        """Example callback; can be replaced by a detection batch handler."""
-        if frames:
-            first_frame = frames[0]
-            last_frame = frames[-1]
-            time_span = last_frame.timestamp - first_frame.timestamp
-
-            logger.info(
-                f"Batch from {src_id}: {len(frames)} frames, "
-                f"time span {time_span:.2f}s, "
-                f"first: {datetime.fromtimestamp(first_frame.timestamp)}, "
-                f"last: {datetime.fromtimestamp(last_frame.timestamp)}"
-            )
-
-    cap = VideoFrameCapture()
-    cap.register_batch_callback(demo_batch_callback)
-
-    # Demo local video in loop mode.
-    test_video_path = "./sample_videos/fire_test.mp4"
-    if os.path.exists(test_video_path):
-        cap.add_local_video_source(
-            source_id="demo_video",
-            video_path=test_video_path,
-            batch_size=8,
-            batch_sec=1.0,
-            loop_play=True,
-        )
-    else:
-        logger.warning(f"Test video not found: {test_video_path}")
-        # Fall back to the default camera path for testing.
-        logger.info("Using default camera for testing...")
-        cap.add_rtsp_source(
-            source_id="demo_camera",
-            rtsp_url="0",
-            batch_size=4,
-            batch_sec=0.5,
-        )
-
-    try:
-        # Wait briefly and inspect status once.
-        time.sleep(5)
-        status = cap.get_source_status()
-        logger.info(f"Source status: {status}")
-
-        # Keep running until interrupted.
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logger.info("Stopping capture...")
-        cap.stop_all()
