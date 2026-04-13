@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(xargs wc:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(where:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vite:*)",
+      "WebSearch",
+      "Bash(mkdir:*)",
+      "Bash(msiexec:*)",
+      "Read(//d/mongodb/**)",
+      "Bash(powershell:*)",
+      "Bash(D:/minio/minio.exe server:*)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(npm run:*)",
+      "Bash(tasklist:*)"
+    ]
+  }
+}

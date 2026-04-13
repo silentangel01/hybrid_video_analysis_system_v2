@@ -105,7 +105,7 @@ class NoParkingZoneChecker:
         Returns:
             List[Dict]: 在禁停区内的违规项
         """
-        logger.debug(f"🔍 ENTER: first 2 items = {violations[:2]}")
+        logger.debug("ENTER filter_violations: first 2 items = %s", violations[:2])
         zones = self.get_zones_for_source(source_id)
         if not zones:
             logger.debug(f"No zone defined for {source_id}")
@@ -123,7 +123,7 @@ class NoParkingZoneChecker:
                     valid.append(v)
                     break
         logger.debug(f"Zone check: {len(valid)}/{len(violations)} cars inside no-parking zone.")
-        logger.debug(f"🔍 EXIT:  {len(valid)}/{len(violations)} items, first 2 = {valid[:2]}")
+        logger.debug("EXIT filter_violations: %d/%d items", len(valid), len(violations))
         return valid
 
     # ----------------------------------------------------------
@@ -155,21 +155,19 @@ class NoParkingZoneChecker:
         """增强匹配：尝试原始ID、basename、无扩展名三种形式"""
         # 标准化：移除路径，保留扩展名（与GUI保存逻辑对齐）
         clean_key = os.path.basename(source_id)
-        logger.debug(f"🔍 DEBUG: Requested source_id = '{source_id}'")
+        logger.debug("Requested source_id = '%s'", source_id)
 
         # 优先匹配带扩展名的键（GUI保存格式）
         if clean_key in self.zones:
-            logger.debug(f"✅ Matched config key (with ext): '{clean_key}'")
+            logger.debug("Matched config key (with ext): '%s'", clean_key)
             return self.zones[clean_key]
 
         # 备用：尝试无扩展名匹配
         no_ext_key = os.path.splitext(clean_key)[0]
         if no_ext_key in self.zones:
-            logger.debug(f"✅ Matched config key (no ext): '{no_ext_key}'")
+            logger.debug("Matched config key (no ext): '%s'", no_ext_key)
             return self.zones[no_ext_key]
 
-        logger.warning(
-            f"⚠️ No zones for '{source_id}'. Tried: ['{clean_key}', '{no_ext_key}']. "
-            f"Available keys: {list(self.zones.keys())}"
-        )
+        logger.warning("No zones for '%s'. Tried: ['%s', '%s']. Available keys: %s",
+                       source_id, clean_key, no_ext_key, list(self.zones.keys()))
         return []

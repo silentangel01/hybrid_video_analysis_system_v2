@@ -37,6 +37,7 @@ class AppResources:
     smoke_service_ready: bool
     common_space_service_ready: bool
     common_space_interval_sec: float
+    dwell_threshold: int = 5
     weights_dir: Optional[str] = None
 
 
@@ -290,7 +291,9 @@ class StreamRuntimeFactory:
         handlers: Dict[str, Any] = {}
 
         if "parking_violation" in tasks:
-            parking_handler = ViolationDetectionService()
+            parking_handler = ViolationDetectionService(
+                dwell_threshold=self.resources.dwell_threshold,
+            )
             parking_handler.set_clients(
                 minio_client=self.resources.minio,
                 mongo_client=self.resources.mongo,
