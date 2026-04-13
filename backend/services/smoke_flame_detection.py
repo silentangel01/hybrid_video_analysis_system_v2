@@ -49,7 +49,7 @@ class SmokeFlameDetectionService:
         self.detection_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="smoke-detect")
         self.verification_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="smoke-verify")
 
-        self.frame_skip = 23  # process 1 frame every 24 frames
+        self.frame_skip = 2  # process 1 frame every 3 (capture already samples to ~1 fps)
         self.last_processed_frame: Dict[str, int] = {}
         self.detection_cache: Dict[str, Any] = {}
 

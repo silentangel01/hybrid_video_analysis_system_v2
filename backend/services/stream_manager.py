@@ -230,18 +230,36 @@ class StreamManager:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _is_local_file(url: str) -> bool:
+        """Return True if *url* looks like a local video file rather than RTSP."""
+        if url.startswith("rtsp://") or url.startswith("rtsps://"):
+            return False
+        return os.path.isfile(url)
+
     def _start_capture(self, runtime: StreamRuntime):
         """Create a VideoFrameCapture for this stream and wire the callback."""
         cap = VideoFrameCapture()
         cap.register_batch_callback(self._make_callback(runtime))
-        cap.add_rtsp_source(
-            source_id=runtime.stream_id,
-            rtsp_url=runtime.url,
-            batch_size=1,
-            batch_sec=1.0,
-            reconnect_delay=5,
-            sample_interval_sec=1.0,
-        )
+
+        if self._is_local_file(runtime.url):
+            cap.add_local_video_source(
+                source_id=runtime.stream_id,
+                video_path=runtime.url,
+                batch_size=1,
+                batch_sec=1.0,
+                loop_play=True,
+            )
+        else:
+            cap.add_rtsp_source(
+                source_id=runtime.stream_id,
+                rtsp_url=runtime.url,
+                batch_size=1,
+                batch_sec=1.0,
+                reconnect_delay=5,
+                sample_interval_sec=1.0,
+            )
+
         runtime.capture = cap
 
     def _wait_capture_ready(self, runtime: StreamRuntime, timeout_sec: float = 3.0) -> bool:
