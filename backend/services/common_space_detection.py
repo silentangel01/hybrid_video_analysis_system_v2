@@ -55,6 +55,10 @@ class CommonSpaceDetectionService:
             "Provide a detailed analysis report."
         )
 
+        # Location / dispatch metadata (set by StreamRuntimeFactory)
+        self.area_code: str = ""
+        self.group: str = ""
+
         # Metrics
         self.received_counter = SlidingCounter(window_sec=10.0)
         self.sampled_counter = SlidingCounter(window_sec=10.0)
@@ -326,6 +330,8 @@ class CommonSpaceDetectionService:
                 timestamp=timestamp,
                 frame_index=frame_meta.frame_index,
                 violations=violations,
+                area_code=self.area_code or None,
+                group=self.group or None,
             )
 
             if ok:

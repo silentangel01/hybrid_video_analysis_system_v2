@@ -80,6 +80,22 @@ class EventModel(BaseModel):
     # 额外元数据，可存储采样间隔、提示词等
     # Additional metadata, can store sample interval, prompts, etc.
 
+    lat_lng: Optional[str] = None
+    # 摄像头地理坐标，例如 "31.2304, 121.4737"
+    # Camera geo-coordinates, e.g. "31.2304, 121.4737"
+
+    location: Optional[str] = None
+    # 摄像头位置描述，例如 "East Gate Entrance"
+    # Camera location description, e.g. "East Gate Entrance"
+
+    area_code: Optional[str] = None
+    # 区域编码，用于 MUBS 派遣规则匹配
+    # Area code for MUBS dispatch rule matching
+
+    group: Optional[str] = None
+    # 分组标识，用于 MUBS 派遣规则匹配
+    # Group identifier for MUBS dispatch rule matching
+
     # ==================== 系统字段 ====================
     created_at: datetime = Field(default_factory=datetime.utcnow)
     # 文档创建时间，默认当前 UTC 时间

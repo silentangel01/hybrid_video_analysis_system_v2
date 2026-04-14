@@ -42,6 +42,26 @@
           />
         </div>
         <div class="form-row">
+          <label class="form-label">Area Code</label>
+          <input
+            v-model="newAreaCode"
+            type="text"
+            placeholder="e.g. east_district"
+            class="form-input"
+          />
+          <span class="form-hint">Used by MUBS for dispatch rule matching.</span>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Group</label>
+          <input
+            v-model="newGroup"
+            type="text"
+            placeholder="e.g. fire_team"
+            class="form-input"
+          />
+          <span class="form-hint">Used by MUBS for team assignment.</span>
+        </div>
+        <div class="form-row">
           <label class="form-label">Analysis Tasks</label>
           <div class="task-checkboxes">
             <label class="checkbox-item" v-for="t in allTasks" :key="t.value">
@@ -68,6 +88,8 @@
               <span class="stream-id">{{ s.stream_id }}</span>
               <code class="camera-code">{{ s.camera_id || '-' }}</code>
               <span v-if="s.location" class="location-tag" :title="s.lat_lng">{{ s.location }}</span>
+              <span v-if="s.area_code" class="area-tag">{{ s.area_code }}</span>
+              <span v-if="s.group" class="group-tag">{{ s.group }}</span>
               <span class="stream-url" :title="s.url">{{ s.url }}</span>
             </div>
             <div class="stream-right">
@@ -308,6 +330,8 @@ const newUrl = ref('')
 const newCameraId = ref('')
 const newLatLng = ref('')
 const newLocation = ref('')
+const newAreaCode = ref('')
+const newGroup = ref('')
 const newTasks = ref([])
 const message = ref('')
 const messageType = ref('success')
@@ -401,7 +425,9 @@ async function addStream() {
         tasks: newTasks.value,
         camera_id: cameraId,
         lat_lng: newLatLng.value.trim(),
-        location: newLocation.value.trim()
+        location: newLocation.value.trim(),
+        area_code: newAreaCode.value.trim(),
+        group: newGroup.value.trim()
       })
     })
     const data = await res.json()
@@ -411,6 +437,8 @@ async function addStream() {
       newCameraId.value = ''
       newLatLng.value = ''
       newLocation.value = ''
+      newAreaCode.value = ''
+      newGroup.value = ''
       newTasks.value = []
       await fetchStreams()
     } else {
@@ -627,6 +655,24 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--color-success);
   background: rgba(34, 197, 94, 0.1);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.area-tag {
+  font-size: 12px;
+  color: var(--color-accent);
+  background: rgba(59, 130, 246, 0.1);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.group-tag {
+  font-size: 12px;
+  color: var(--color-warning);
+  background: rgba(245, 158, 11, 0.1);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
   white-space: nowrap;

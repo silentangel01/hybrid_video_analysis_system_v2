@@ -48,6 +48,8 @@ class ViolationDetectionService:
         # Location metadata (set by StreamRuntimeFactory)
         self.lat_lng: str = ""
         self.location: str = ""
+        self.area_code: str = ""
+        self.group: str = ""
 
         # Metrics
         self.metrics_lock = threading.Lock()
@@ -209,6 +211,8 @@ class ViolationDetectionService:
             zones=zones,
             lat_lng=self.lat_lng or None,
             location=self.location or None,
+            area_code=self.area_code or None,
+            group=self.group or None,
         )
         self.db_latency.record(time.perf_counter() - db_started)
 

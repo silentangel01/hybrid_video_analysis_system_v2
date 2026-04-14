@@ -46,33 +46,33 @@ class MongoDBClient:
             logger.error(f"[MongoDB] Connection failed: {e}")
             self.client = None
 
-    def save_event(self, event: EventModel) -> bool:
+    def save_event(self, event: EventModel) -> Optional[str]:
         """
         Insert event into MongoDB.
-        ✅ 修复：使用 model_dump() 替代 dict() 以包含所有字段
+        Returns the inserted document ``_id`` as a string, or *None* on failure.
+        Truthy/falsy semantics are preserved for existing callers.
         """
         if self.collection is None:
             logger.error("[MongoDB] Collection not initialized")
-            return False
+            return None
 
         try:
-            # ✅ 修复：使用 model_dump() 而不是 dict()
-            # dict() 方法不包含默认值，model_dump() 包含所有字段
             event_dict = event.model_dump(exclude_none=True)
 
             # 确保 created_at 字段存在
             if "created_at" not in event_dict:
                 event_dict["created_at"] = datetime.utcnow()
 
-            self.collection.insert_one(event_dict)
-            logger.debug(f"[MongoDB] Saved event: {event.event_type} from {event.camera_id}")
+            result = self.collection.insert_one(event_dict)
+            inserted_id = str(result.inserted_id)
+            logger.debug(f"[MongoDB] Saved event: {event.event_type} from {event.camera_id} (id={inserted_id})")
             logger.debug(f"[MongoDB] Event data: {event_dict.keys()}")
-            return True
+            return inserted_id
 
         except Exception as e:
             logger.error(f"[MongoDB] Save failed: {e}")
             logger.error(f"[MongoDB] Event data that failed: {event.model_dump() if hasattr(event, 'model_dump') else 'N/A'}")
-            return False
+            return None
 
     def save_events(self, events: List[EventModel]) -> bool:
         """批量插入多个事件 | Batch insert multiple events"""

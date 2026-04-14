@@ -1,5 +1,8 @@
 """Flask Blueprint for event query REST API."""
 
+import os
+import random
+import time
 from datetime import datetime
 import logging
 from typing import Any, Dict
@@ -12,11 +15,13 @@ logger = logging.getLogger(__name__)
 event_bp = Blueprint("events", __name__)
 
 _mongo_client = None
+_minio_client = None
 
 
-def init_event_routes(mongo_client):
-    global _mongo_client
+def init_event_routes(mongo_client, minio_client=None):
+    global _mongo_client, _minio_client
     _mongo_client = mongo_client
+    _minio_client = minio_client
 
 
 def _require_mongo():
@@ -75,6 +80,7 @@ def list_events():
     camera_id = request.args.get("camera_id", "").strip() or None
     event_type = request.args.get("event_type", "").strip() or None
     detection_stage = request.args.get("detection_stage", "").strip() or None
+    since_id = request.args.get("since_id", "").strip() or None
 
     start_time, parse_err = _parse_float(request.args.get("start_time"), "start_time")
     if parse_err:
@@ -92,6 +98,56 @@ def list_events():
     if parse_err:
         return parse_err
 
+    # Validate since_id early if provided
+    since_oid = None
+    if since_id:
+        try:
+            since_oid = ObjectId(since_id)
+        except Exception:
+            return jsonify({"error": "invalid since_id"}), 400
+
+    # --- Incremental sync mode (since_id) ---
+    # When since_id is provided, return events created AFTER that _id
+    # using ascending _id order (chronological for ObjectId).
+    if since_oid is not None:
+        query: Dict[str, Any] = {"_id": {"$gt": since_oid}}
+        if camera_id:
+            query["camera_id"] = camera_id
+        if event_type:
+            query["event_type"] = event_type
+        if detection_stage:
+            query["detection_stage"] = detection_stage
+        if start_time is not None or end_time is not None:
+            query["timestamp"] = {}
+            if start_time is not None:
+                query["timestamp"]["$gte"] = start_time
+            if end_time is not None:
+                query["timestamp"]["$lte"] = end_time
+
+        cursor = _mongo_client.collection.find(query).sort("_id", 1).limit(limit)
+        items = [_serialize_event(doc) for doc in cursor]
+        total = _mongo_client.collection.count_documents(query)
+
+        return jsonify({
+            "items": items,
+            "pagination": {
+                "limit": limit,
+                "skip": 0,
+                "returned": len(items),
+                "total": total,
+                "has_more": len(items) < total,
+            },
+            "filters": {
+                "since_id": since_id,
+                "camera_id": camera_id,
+                "event_type": event_type,
+                "detection_stage": detection_stage,
+                "start_time": start_time,
+                "end_time": end_time,
+            }
+        }), 200
+
+    # --- Standard query mode ---
     events = _mongo_client.find_events(
         camera_id=camera_id,
         event_type=event_type,
@@ -200,3 +256,122 @@ def event_detail(event_id: str):
         return jsonify({"error": "event not found"}), 404
 
     return jsonify(_serialize_event(doc)), 200
+
+
+# ------------------------------------------------------------------
+# PATCH /api/events/<event_id>/status  — Event status feedback (Phase 1.4)
+# ------------------------------------------------------------------
+
+_VALID_STATUSES = {"pending", "dispatched", "processing", "resolved", "rejected"}
+
+
+@event_bp.route("/api/events/<event_id>/status", methods=["PATCH"])
+def update_event_status(event_id: str):
+    """Allow MUBS (or any caller) to update the handling status of an event."""
+    err = _require_mongo()
+    if err:
+        return err
+
+    try:
+        object_id = ObjectId(event_id)
+    except Exception:
+        return jsonify({"error": "invalid event_id"}), 400
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    status = (data.get("status") or "").strip().lower()
+    if not status:
+        return jsonify({"error": "status is required"}), 400
+    if status not in _VALID_STATUSES:
+        return jsonify({"error": f"status must be one of: {', '.join(sorted(_VALID_STATUSES))}"}), 400
+
+    update_fields: Dict[str, Any] = {
+        "status": status,
+        "handled_at": datetime.utcnow(),
+    }
+
+    # Optional fields from MUBS
+    for field in ("handled_by", "handle_note", "handle_image_url"):
+        value = data.get(field)
+        if value is not None:
+            update_fields[field] = value
+
+    result = _mongo_client.collection.update_one(
+        {"_id": object_id},
+        {"$set": update_fields},
+    )
+
+    if result.matched_count == 0:
+        return jsonify({"error": "event not found"}), 404
+
+    doc = _mongo_client.collection.find_one({"_id": object_id})
+    return jsonify(_serialize_event(doc)), 200
+
+
+# ------------------------------------------------------------------
+# POST /api/events/mock  — Demo mode synthetic event (Phase 1.6)
+# ------------------------------------------------------------------
+
+_MOCK_TEMPLATES = {
+    "smoke_flame": {
+        "description": "Smoke/flame detected (mock demo event)",
+        "confidence": lambda: round(random.uniform(0.70, 0.95), 2),
+        "detection_stage": "qwen_verified",
+    },
+    "parking_violation": {
+        "description": "Vehicle in no-parking zone (mock demo event)",
+        "confidence": lambda: round(random.uniform(0.75, 0.98), 2),
+        "detection_stage": "yolo_initial",
+    },
+    "common_space_utilization": {
+        "description": "Public space analysis: moderate occupancy (mock demo event)",
+        "confidence": lambda: 1.0,
+        "detection_stage": "qwen_vl_analysis",
+    },
+}
+
+
+@event_bp.route("/api/events/mock", methods=["POST"])
+def create_mock_event():
+    """Generate a synthetic event for demo purposes. Only works when DEMO_MODE=true."""
+    if os.environ.get("DEMO_MODE", "").lower() != "true":
+        return jsonify({"error": "DEMO_MODE is not enabled"}), 403
+
+    err = _require_mongo()
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    event_type = (data.get("event_type") or "smoke_flame").strip()
+    camera_id = (data.get("camera_id") or "demo_camera_01").strip()
+    area_code = (data.get("area_code") or "").strip()
+    group = (data.get("group") or "").strip()
+    lat_lng = (data.get("lat_lng") or "").strip()
+    location = (data.get("location") or "").strip()
+
+    template = _MOCK_TEMPLATES.get(event_type, _MOCK_TEMPLATES["smoke_flame"])
+
+    from backend.services.event_generator import handle_event_detected
+
+    ok = handle_event_detected(
+        minio_client=_minio_client,
+        mongo_client=_mongo_client,
+        image_url="http://localhost:9000/video-events/mock/placeholder.jpg",
+        camera_id=camera_id,
+        timestamp=time.time(),
+        event_type=event_type,
+        confidence=template["confidence"](),
+        description=template["description"],
+        detection_stage=template["detection_stage"],
+        object_count=random.randint(1, 3),
+        lat_lng=lat_lng or None,
+        location=location or None,
+        area_code=area_code or None,
+        group=group or None,
+    )
+
+    if ok:
+        return jsonify({"message": "Mock event created", "event_type": event_type, "camera_id": camera_id}), 201
+    return jsonify({"error": "Failed to create mock event"}), 500

@@ -179,6 +179,8 @@ def handle_event_detected(
     objects: Optional[List[Dict[str, Any]]] = None,
     lat_lng: Optional[str] = None,
     location: Optional[str] = None,
+    area_code: Optional[str] = None,
+    group: Optional[str] = None,
 ) -> bool:
     """Persist a single event metadata document into MongoDB."""
     _ = minio_client  # kept in signature for caller compatibility
@@ -222,6 +224,8 @@ def handle_event_detected(
             "metadata": metadata,
             "lat_lng": lat_lng,
             "location": location,
+            "area_code": area_code,
+            "group": group,
         }
         for key, val in _optional.items():
             if val is not None:
@@ -233,28 +237,32 @@ def handle_event_detected(
             logger.error("EventModel validation error: %s | data=%s", e, event_data)
             return False
 
-        ok: bool = mongo_client.save_event(event)
-        if ok:
-            logger.debug("Event saved: %s from %s", description[:50], camera_id)
+        event_id = mongo_client.save_event(event)
+        if event_id:
+            logger.debug("Event saved: %s from %s (id=%s)", description[:50], camera_id, event_id)
             # Fire webhook notification (non-blocking)
             if _webhook_service is not None:
                 try:
                     _webhook_service.notify({
+                        "event_id": event_id,
                         "event_type": event_type,
                         "camera_id": camera_id,
                         "timestamp": timestamp,
+                        "created_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                         "confidence": conf,
                         "image_url": clean_url,
                         "description": description,
                         "object_count": object_count,
                         "lat_lng": lat_lng,
                         "location": location,
+                        "area_code": area_code or "",
+                        "group": group or "",
                     })
                 except Exception as wh_err:
                     logger.warning("Webhook notification failed: %s", wh_err)
         else:
             logger.error("MongoDB save failed for camera_id=%s", camera_id)
-        return ok
+        return bool(event_id)
 
     except Exception as e:
         logger.error("Unexpected error in handle_event_detected: %s", e, exc_info=True)
@@ -277,6 +285,8 @@ def handle_frame_events(
     event_type_override: Optional[str] = None,
     lat_lng: Optional[str] = None,
     location: Optional[str] = None,
+    area_code: Optional[str] = None,
+    group: Optional[str] = None,
 ) -> bool:
     """Save one aggregated event document for one frame."""
     if not violations:
@@ -306,6 +316,8 @@ def handle_frame_events(
             metadata=meta,
             lat_lng=lat_lng,
             location=location,
+            area_code=area_code,
+            group=group,
         )
 
     # Non-common-space: aggregate all detections into one document.
@@ -355,6 +367,8 @@ def handle_frame_events(
         objects=objects,
         lat_lng=lat_lng,
         location=location,
+        area_code=area_code,
+        group=group,
     )
 
     if ok:
@@ -378,6 +392,8 @@ def handle_smoke_flame_events(
     detections: List[Dict[str, Any]],
     lat_lng: Optional[str] = None,
     location: Optional[str] = None,
+    area_code: Optional[str] = None,
+    group: Optional[str] = None,
 ) -> bool:
     """Smoke/flame event save entry point."""
     return handle_frame_events(
@@ -391,6 +407,8 @@ def handle_smoke_flame_events(
         event_type_override="smoke_flame",
         lat_lng=lat_lng,
         location=location,
+        area_code=area_code,
+        group=group,
     )
 
 
@@ -405,6 +423,8 @@ def handle_parking_violation_events(
     zones: List[List[tuple]],
     lat_lng: Optional[str] = None,
     location: Optional[str] = None,
+    area_code: Optional[str] = None,
+    group: Optional[str] = None,
 ) -> bool:
     """Parking violation event save entry point."""
     return handle_frame_events(
@@ -419,6 +439,8 @@ def handle_parking_violation_events(
         event_type_override="parking_violation",
         lat_lng=lat_lng,
         location=location,
+        area_code=area_code,
+        group=group,
     )
 
 
@@ -431,6 +453,8 @@ def handle_common_space_events(
     frame_index: int,
     analysis_data: Dict[str, Any],
     sample_interval: Optional[int] = None,
+    area_code: Optional[str] = None,
+    group: Optional[str] = None,
 ) -> bool:
     """Common space analysis event save entry point."""
     if not analysis_data.get("analysis_result"):
@@ -459,4 +483,6 @@ def handle_common_space_events(
         frame_index=frame_index,
         violations=[violation],
         event_type_override="common_space_utilization",
+        area_code=area_code,
+        group=group,
     )

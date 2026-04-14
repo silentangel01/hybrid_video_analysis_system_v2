@@ -58,6 +58,8 @@ class SmokeFlameDetectionService:
         # Location metadata (set by StreamRuntimeFactory)
         self.lat_lng: str = ""
         self.location: str = ""
+        self.area_code: str = ""
+        self.group: str = ""
 
         # Metrics
         self.metrics_lock = threading.Lock()
@@ -408,6 +410,8 @@ class SmokeFlameDetectionService:
                 event_type_override="smoke_flame",
                 lat_lng=self.lat_lng or None,
                 location=self.location or None,
+                area_code=self.area_code or None,
+                group=self.group or None,
             )
 
             if ok:

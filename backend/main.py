@@ -227,23 +227,26 @@ def create_stream_manager(services: Dict[str, Any]):
     return sm
 
 
-def start_api_server(stream_manager, mongo_client, webhook_service, port: int = 5000):
+def start_api_server(stream_manager, mongo_client, webhook_service, minio_client=None, port: int = 5000):
     """Start Flask API in a daemon thread."""
     from flask import Flask
     from flask_cors import CORS
     from backend.api.stream_routes import stream_bp, init_stream_routes
     from backend.api.event_routes import event_bp, init_event_routes
     from backend.api.webhook_routes import webhook_bp, init_webhook_routes
+    from backend.api.health_routes import health_bp, init_health_routes
 
     app = Flask(__name__)
     CORS(app)
 
     init_stream_routes(stream_manager)
-    init_event_routes(mongo_client)
+    init_event_routes(mongo_client, minio_client=minio_client)
     init_webhook_routes(webhook_service)
+    init_health_routes(mongo_client, minio_client=minio_client, stream_manager=stream_manager)
     app.register_blueprint(stream_bp)
     app.register_blueprint(event_bp)
     app.register_blueprint(webhook_bp)
+    app.register_blueprint(health_bp)
 
     def _run():
         logger.info("Flask API starting on port %d...", port)
@@ -308,7 +311,7 @@ def main():
 
         # StreamManager + API
         stream_manager = create_stream_manager(services)
-        start_api_server(stream_manager, services["mongo"], services["webhook_service"], port=5000)
+        start_api_server(stream_manager, services["mongo"], services["webhook_service"], minio_client=services["minio"], port=5000)
 
         # Optional RTSP sources from env
         rtsp_count = start_rtsp_sources(cfg, services, stream_manager)

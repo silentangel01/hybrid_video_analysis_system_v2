@@ -9,8 +9,11 @@ Design:
   - Optional ``event_types`` filter per webhook
 """
 
+import hashlib
+import hmac
 import json
 import logging
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -24,6 +27,7 @@ logger = logging.getLogger(__name__)
 _CACHE_TTL_SEC = 60.0
 _REQUEST_TIMEOUT_SEC = 5
 _MAX_RETRIES = 2
+_WEBHOOK_SECRET: Optional[str] = os.environ.get("WEBHOOK_SECRET")
 
 
 class WebhookService:
@@ -123,7 +127,13 @@ class WebhookService:
     @staticmethod
     def _post_with_retry(url: str, payload: Dict[str, Any]) -> None:
         data = json.dumps(payload, default=str).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
+        headers: Dict[str, str] = {"Content-Type": "application/json"}
+        # Compute HMAC-SHA256 signature when a shared secret is configured.
+        if _WEBHOOK_SECRET:
+            sig = hmac.new(
+                _WEBHOOK_SECRET.encode("utf-8"), data, hashlib.sha256
+            ).hexdigest()
+            headers["X-HVAS-Signature"] = sig
         for attempt in range(1 + _MAX_RETRIES):
             try:
                 req = urllib.request.Request(
