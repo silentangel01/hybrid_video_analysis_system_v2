@@ -250,7 +250,7 @@ def start_api_server(stream_manager, mongo_client, webhook_service, minio_client
 
     def _run():
         logger.info("Flask API starting on port %d...", port)
-        app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+        app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False, threaded=True)
 
     t = threading.Thread(target=_run, daemon=True, name="flask-api")
     t.start()
