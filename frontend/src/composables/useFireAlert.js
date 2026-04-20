@@ -10,7 +10,7 @@ let refCount = 0
 
 async function checkFireEvents() {
   try {
-    const response = await fetch('http://localhost:8080/api/events')
+    const response = await fetch('http://localhost:8000/api/events')
     if (!response.ok) return
 
     const data = await response.json()

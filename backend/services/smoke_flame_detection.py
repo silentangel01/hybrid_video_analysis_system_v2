@@ -49,9 +49,9 @@ class SmokeFlameDetectionService:
         self.qwen_vl_client = None
 
         self.detection_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="smoke-detect")
-        self.verification_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="smoke-verify")
+        self.verification_pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="smoke-verify")
 
-        self.frame_skip = 2  # process 1 frame every 3 (capture already samples to ~1 fps)
+        self.frame_skip = 3  # process 1 frame every 4 (reduce load on verification queue)
         self.last_processed_frame: Dict[str, int] = {}
         self.detection_cache: Dict[str, Any] = {}
         self._last_event_time: Dict[str, float] = {}  # per-source cooldown tracker
@@ -299,6 +299,12 @@ class SmokeFlameDetectionService:
         """Submit parallel Qwen-VL verifications for each detection region."""
         if not self.qwen_vl_client:
             logger.warning("Qwen-VL client not available, using YOLO results directly")
+            return detections
+
+        # Skip verification if queue is already backed up (> 12 pending tasks)
+        queue_size = get_thread_pool_queue_size(self.verification_pool)
+        if queue_size > 12:
+            logger.debug("Verification queue full (%d), using YOLO results directly", queue_size)
             return detections
 
         to_verify = detections[:8]

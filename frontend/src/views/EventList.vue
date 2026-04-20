@@ -155,7 +155,7 @@ async function fetchEvents() {
   loading.value = true
   error.value = null
   try {
-    const response = await fetch('http://localhost:8080/api/events-all')
+    const response = await fetch('http://localhost:8000/api/events-all')
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const data = await response.json()
     if (data.success) {
