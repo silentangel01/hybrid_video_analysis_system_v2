@@ -323,7 +323,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
-const API = 'http://localhost:8000'
+const API = 'http://localhost:5000'
 
 const streams = ref([])
 const newUrl = ref('')

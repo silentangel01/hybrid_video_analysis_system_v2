@@ -131,8 +131,8 @@ function fmtN(v) {
 
 async function fetchAll() {
   const [streamsRes, eventsRes] = await Promise.allSettled([
-    fetch('http://localhost:8000/api/streams').then(r => r.ok ? r.json() : []),
-    fetch('http://localhost:8000/api/events-all').then(r => r.ok ? r.json() : { success: false })
+    fetch('http://localhost:5000/api/streams').then(r => r.ok ? r.json() : []),
+    fetch('http://localhost:5000/api/events-all').then(r => r.ok ? r.json() : { success: false })
   ])
 
   if (streamsRes.status === 'fulfilled') {
