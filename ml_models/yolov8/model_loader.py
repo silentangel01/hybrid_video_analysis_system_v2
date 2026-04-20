@@ -19,14 +19,14 @@ class YOLOModelLoader:
 
     """
         In order to deal with Yolo not Found.
-        
+
         def __init__(self, weights_dir: str = "./ml_models/yolov8/weights"):
         self.weights_dir = weights_dir
         self.models: Dict[str, YOLO] = {}  # {model_name: YOLO instance}
         self.model_names: Dict[str, Dict[int, str]] = {}  # {model_name: {0: 'person', 1: 'car', ...}}
     """
 
-    def __init__(self, weights_dir: Optional[str] = None):
+    def __init__(self, weights_dir: Optional[str] = None, device: Optional[str] = None):
         if weights_dir is None:
             # 自动推断项目根目录（基于 model_loader.py 的位置）
             current_file = os.path.abspath(__file__)
@@ -37,6 +37,10 @@ class YOLOModelLoader:
         self.weights_dir = weights_dir
         self.models = {}
         self.model_names = {}
+        # Device: "cuda", "cuda:0", "cpu", or None (auto-detect)
+        if device is None:
+            device = os.environ.get("YOLO_DEVICE", "").strip() or None
+        self.device = device
 
     def load_model(self, model_name: str, weight_file: str) -> bool:
         """
@@ -55,6 +59,10 @@ class YOLOModelLoader:
 
         try:
             model = YOLO(weight_path)
+            # Move model to configured device (GPU/CPU)
+            if self.device:
+                model.to(self.device)
+                logger.info(f"Model '{model_name}' using device: {self.device}")
             self.models[model_name] = model
 
             # 🧠 自动提取类别名映射

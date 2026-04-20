@@ -59,7 +59,22 @@ def initialize_services(cfg: Dict[str, Any]):
     from backend.services.parking_zone_checker import NoParkingZoneChecker
     from backend.services.stream_runtime import AppResources, StreamRuntimeFactory
 
-    loader = YOLOModelLoader()
+    # Determine inference device (env: YOLO_DEVICE=cuda / cuda:0 / cpu)
+    yolo_device = os.getenv("YOLO_DEVICE", "").strip() or None
+    if yolo_device and "cuda" in yolo_device:
+        try:
+            import torch
+            if not torch.cuda.is_available():
+                logger.warning("YOLO_DEVICE=%s but CUDA not available, falling back to CPU", yolo_device)
+                yolo_device = "cpu"
+            else:
+                logger.info("CUDA available: %s (%s)", torch.cuda.get_device_name(0), torch.cuda.get_device_properties(0).total_mem // 1024**2)
+        except ImportError:
+            logger.warning("torch not installed with CUDA support, falling back to CPU")
+            yolo_device = "cpu"
+    logger.info("YOLO inference device: %s", yolo_device or "auto (CPU)")
+
+    loader = YOLOModelLoader(device=yolo_device)
     loader.load_model("vehicle", "yolov8n.pt")
     try:
         loader.load_model("smoke_flame", "smoke_flame.pt")

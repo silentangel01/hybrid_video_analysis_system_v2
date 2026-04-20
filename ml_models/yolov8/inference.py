@@ -16,7 +16,8 @@ class YOLOInference:
         model,
         image: np.ndarray,
         conf_threshold: float = 0.25,
-        iou_threshold: float = 0.45
+        iou_threshold: float = 0.45,
+        device: Optional[str] = None
     ) -> List[Tuple[str, float, Tuple[int, int, int, int]]]:
         """
         Run object detection on single image frame.
@@ -25,6 +26,7 @@ class YOLOInference:
             image: OpenCV image (numpy array)
             conf_threshold: Confidence threshold for filtering
             iou_threshold: IOU threshold for NMS
+            device: Inference device ("cuda", "cuda:0", "cpu", or None for model default)
         Returns:
             List of detections: [(class_name, confidence, (x1,y1,x2,y2)), ...]
         """
@@ -32,12 +34,16 @@ class YOLOInference:
             return []
 
         # Run inference
-        results = model.predict(
+        predict_kwargs = dict(
             source=image,
             conf=conf_threshold,
             iou=iou_threshold,
-            verbose=False  # Suppress console output
+            verbose=False,
         )
+        if device:
+            predict_kwargs["device"] = device
+
+        results = model.predict(**predict_kwargs)
 
         detections = []
         for result in results:

@@ -4,6 +4,11 @@
 # Install: pip install -r requirements.txt
 # Note: torch/torchvision are pulled in by ultralytics automatically.
 #       Only direct dependencies are listed here; pip resolves transitive deps.
+#
+# GPU Support:
+#   ultralytics installs CPU-only torch by default. For CUDA GPU acceleration:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#   Then set env: YOLO_DEVICE=cuda
 # =============================================================================
 
 # --- Web Framework ---
