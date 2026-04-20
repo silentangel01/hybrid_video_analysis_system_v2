@@ -68,7 +68,7 @@ def initialize_services(cfg: Dict[str, Any]):
                 logger.warning("YOLO_DEVICE=%s but CUDA not available, falling back to CPU", yolo_device)
                 yolo_device = "cpu"
             else:
-                logger.info("CUDA available: %s (%s)", torch.cuda.get_device_name(0), torch.cuda.get_device_properties(0).total_mem // 1024**2)
+                logger.info("CUDA available: %s (%s MB)", torch.cuda.get_device_name(0), torch.cuda.get_device_properties(0).total_memory // 1024**2)
         except ImportError:
             logger.warning("torch not installed with CUDA support, falling back to CPU")
             yolo_device = "cpu"
