@@ -193,6 +193,22 @@ def list_events():
     }), 200
 
 
+@event_bp.route("/api/events-all", methods=["GET"])
+def list_all_events():
+    """Return all events in a simple format for the frontend dashboard."""
+    err = _require_mongo()
+    if err:
+        return err
+    try:
+        events = _mongo_client.find_events(limit=500)
+        return jsonify({
+            "success": True,
+            "events": [_serialize_event(e) for e in events],
+        }), 200
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 @event_bp.route("/api/events/latest", methods=["GET"])
 def latest_events():
     err = _require_mongo()
