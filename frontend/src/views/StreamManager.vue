@@ -134,7 +134,10 @@
               :src="API + '/api/streams/' + s.stream_id + '/video_feed'"
               class="preview-img"
               alt="Live preview"
+              @load="previewLoading.delete(s.stream_id)"
+              @error="onPreviewError($event, s.stream_id)"
             />
+            <div v-if="previewLoading.has(s.stream_id)" class="preview-loading">Connecting...</div>
           </div>
 
           <!-- Metrics panel (expandable) -->
@@ -351,6 +354,7 @@ const editing = ref(null)
 const editTasks = ref([])
 const expanded = ref(new Set())
 const previewing = ref(new Set())
+const previewLoading = ref(new Set())
 
 const allTasks = [
   { value: 'parking_violation', label: 'Parking Violation' },
@@ -408,9 +412,23 @@ function toggleMetrics(id) {
 function togglePreview(id) {
   if (previewing.value.has(id)) {
     previewing.value.delete(id)
+    previewLoading.value.delete(id)
   } else {
     previewing.value.add(id)
+    previewLoading.value.add(id)
   }
+}
+
+function onPreviewError(event, streamId) {
+  // MJPEG stream failed or not ready yet — retry after 2s
+  const img = event.target
+  const origSrc = img.src
+  img.src = ''
+  setTimeout(() => {
+    if (previewing.value.has(streamId)) {
+      img.src = origSrc
+    }
+  }, 2000)
 }
 
 function showMsg(text, type = 'success') {
@@ -851,6 +869,8 @@ onUnmounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   overflow: hidden;
+  position: relative;
+  min-height: 120px;
 }
 
 .preview-img {
@@ -859,6 +879,18 @@ onUnmounted(() => {
   max-height: 400px;
   object-fit: contain;
   background: #000;
+}
+
+.preview-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  color: #a78bfa;
+  font-size: 14px;
+  pointer-events: none;
 }
 
 .btn-preview {

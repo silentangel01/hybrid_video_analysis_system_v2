@@ -14,7 +14,7 @@ Endpoints:
 
 import logging
 import time
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify, Response, stream_with_context
 
 logger = logging.getLogger(__name__)
 
@@ -135,18 +135,32 @@ def video_feed(stream_id):
         return jsonify({"error": "StreamManager not initialised"}), 503
 
     def generate():
+        miss = 0
         while True:
             jpeg = _stream_manager.get_latest_jpeg(stream_id)
             if jpeg is not None:
+                miss = 0
                 yield (
                     b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
+                    b"Content-Type: image/jpeg\r\n"
+                    b"Content-Length: " + str(len(jpeg)).encode() + b"\r\n"
+                    b"\r\n" + jpeg + b"\r\n"
                 )
+            else:
+                miss += 1
+                if miss > 150:  # ~10s with no frame → stop
+                    break
             time.sleep(1 / 15)  # ~15 fps push rate
 
     return Response(
-        generate(),
+        stream_with_context(generate()),
         mimetype="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
 
 
