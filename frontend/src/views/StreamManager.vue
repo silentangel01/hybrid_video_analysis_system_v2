@@ -119,10 +119,22 @@
                 <button class="btn-sm btn-muted" @click="editing = null">Cancel</button>
               </template>
               <template v-else>
+                <button class="btn-sm btn-preview" @click="togglePreview(s.stream_id)">
+                  {{ previewing.has(s.stream_id) ? 'Hide' : 'Preview' }}
+                </button>
                 <button class="btn-sm btn-outline" @click="startEdit(s)">Edit</button>
                 <button class="btn-sm btn-danger" @click="removeStream(s.stream_id)">Delete</button>
               </template>
             </div>
+          </div>
+
+          <!-- Video preview (MJPEG) -->
+          <div v-if="previewing.has(s.stream_id)" class="preview-panel">
+            <img
+              :src="API + '/api/streams/' + s.stream_id + '/video_feed'"
+              class="preview-img"
+              alt="Live preview"
+            />
           </div>
 
           <!-- Metrics panel (expandable) -->
@@ -338,6 +350,7 @@ const messageType = ref('success')
 const editing = ref(null)
 const editTasks = ref([])
 const expanded = ref(new Set())
+const previewing = ref(new Set())
 
 const allTasks = [
   { value: 'parking_violation', label: 'Parking Violation' },
@@ -389,6 +402,14 @@ function toggleMetrics(id) {
     expanded.value.delete(id)
   } else {
     expanded.value.add(id)
+  }
+}
+
+function togglePreview(id) {
+  if (previewing.value.has(id)) {
+    previewing.value.delete(id)
+  } else {
+    previewing.value.add(id)
   }
 }
 
@@ -821,6 +842,32 @@ onUnmounted(() => {
 .btn-muted {
   background: var(--color-bg-tertiary);
   color: var(--color-text-secondary);
+}
+
+/* Preview panel */
+.preview-panel {
+  margin-top: 10px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.preview-img {
+  display: block;
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  background: #000;
+}
+
+.btn-preview {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+
+.btn-preview:hover {
+  background: rgba(139, 92, 246, 0.25);
 }
 
 /* Metrics panel */

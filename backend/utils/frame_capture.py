@@ -75,9 +75,25 @@ class VideoFrameCapture:
         # Callback signature: batch_callback(source_id, frame_list)
         self._callback: Optional[Callable[[str, List[FrameWithMetadata]], None]] = None
 
+        # Latest-frame buffer for MJPEG preview (JPEG bytes per source)
+        self._latest_frames: Dict[str, bytes] = {}
+        self._latest_frames_lock = threading.Lock()
+
     def register_batch_callback(self, callback: Callable[[str, List[FrameWithMetadata]], None]):
         """Register the batched callback used by downstream detectors."""
         self._callback = callback
+
+    def get_latest_jpeg(self, source_id: str) -> Optional[bytes]:
+        """Return the most recent JPEG-encoded frame for *source_id*, or None."""
+        with self._latest_frames_lock:
+            return self._latest_frames.get(source_id)
+
+    def _store_latest_frame(self, source_id: str, frame):
+        """JPEG-encode *frame* and store it in the latest-frame buffer."""
+        ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        if ok:
+            with self._latest_frames_lock:
+                self._latest_frames[source_id] = buf.tobytes()
 
     # -------------------- Source Registration --------------------
     def _set_source_detail(self, source_id: str, **updates):
@@ -296,6 +312,9 @@ class VideoFrameCapture:
                 frame_idx += 1
                 perf["read_counter"].add()
 
+                # Store latest frame for MJPEG preview (before sampling gate)
+                self._store_latest_frame(source_id, frame)
+
                 current_time = time.time()
 
                 # Always update last_frame_at so liveness checks stay fresh.
@@ -392,6 +411,9 @@ class VideoFrameCapture:
                     break
                 frame_idx += 1
                 perf["read_counter"].add()
+
+                # Store latest frame for MJPEG preview
+                self._store_latest_frame(source_id, frame)
 
                 # Local files use playback offset plus a wall-clock base.
                 video_pos_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0

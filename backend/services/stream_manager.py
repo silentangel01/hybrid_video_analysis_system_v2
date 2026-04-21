@@ -230,6 +230,14 @@ class StreamManager:
             "created_at": runtime.created_at,
         }
 
+    def get_latest_jpeg(self, stream_id: str) -> Optional[bytes]:
+        """Return the latest JPEG frame for a stream, or None."""
+        with self.lock:
+            runtime = self.streams.get(stream_id)
+        if runtime is None or runtime.capture is None:
+            return None
+        return runtime.capture.get_latest_jpeg(runtime.stream_id)
+
     def stop_all(self):
         """Stop all streams gracefully."""
         with self.lock:
@@ -269,7 +277,7 @@ class StreamManager:
                 batch_size=1,
                 batch_sec=1.0,
                 reconnect_delay=5,
-                sample_interval_sec=1.0,
+                sample_interval_sec=0,
             )
 
         runtime.capture = cap

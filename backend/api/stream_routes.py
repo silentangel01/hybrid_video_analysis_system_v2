@@ -5,13 +5,16 @@ Flask Blueprint for RTSP stream management REST API.
 Endpoints:
   GET    /api/streams            - list all streams
   GET    /api/streams/<id>/metrics - get runtime metrics for one stream
+  GET    /api/streams/<id>/video_feed - MJPEG live stream
+  GET    /api/streams/<id>/snapshot   - single JPEG frame
   POST   /api/streams            - add a stream  {url, tasks, camera_id}
   DELETE /api/streams/<id>       - remove a stream
   PUT    /api/streams/<id>/tasks - update tasks   {tasks}
 """
 
 import logging
-from flask import Blueprint, request, jsonify
+import time
+from flask import Blueprint, request, jsonify, Response
 
 logger = logging.getLogger(__name__)
 
@@ -121,3 +124,42 @@ def update_tasks(stream_id):
     if ok:
         return jsonify({"stream_id": stream_id, "tasks": tasks}), 200
     return jsonify({"error": f"{stream_id} not found or invalid tasks"}), 404
+
+
+# ------------------------------------------------------------------
+# GET /api/streams/<id>/video_feed  (MJPEG over HTTP)
+# ------------------------------------------------------------------
+@stream_bp.route("/api/streams/<stream_id>/video_feed", methods=["GET"])
+def video_feed(stream_id):
+    if _stream_manager is None:
+        return jsonify({"error": "StreamManager not initialised"}), 503
+
+    def generate():
+        while True:
+            jpeg = _stream_manager.get_latest_jpeg(stream_id)
+            if jpeg is not None:
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
+                )
+            time.sleep(1 / 15)  # ~15 fps push rate
+
+    return Response(
+        generate(),
+        mimetype="multipart/x-mixed-replace; boundary=frame",
+    )
+
+
+# ------------------------------------------------------------------
+# GET /api/streams/<id>/snapshot  (single JPEG)
+# ------------------------------------------------------------------
+@stream_bp.route("/api/streams/<stream_id>/snapshot", methods=["GET"])
+def snapshot(stream_id):
+    if _stream_manager is None:
+        return jsonify({"error": "StreamManager not initialised"}), 503
+
+    jpeg = _stream_manager.get_latest_jpeg(stream_id)
+    if jpeg is None:
+        return jsonify({"error": "No frame available"}), 404
+
+    return Response(jpeg, mimetype="image/jpeg")
