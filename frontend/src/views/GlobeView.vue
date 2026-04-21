@@ -265,10 +265,11 @@ onUnmounted(() => {
   top: 16px;
   right: 16px;
   width: 320px;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
   z-index: 10;
 }
 

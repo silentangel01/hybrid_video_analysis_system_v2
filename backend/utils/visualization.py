@@ -38,6 +38,14 @@ def draw_detection_box(
     """
     try:
         x1, y1, x2, y2 = bbox
+        h, w = image.shape[:2]
+
+        # Scale font/thickness based on image size (reference: 640px)
+        scale = min(w, h) / 640.0
+        font_scale = max(0.3, 0.4 * scale)
+        box_thickness = max(1, int(1.5 * scale))
+        text_thickness = max(1, int(scale))
+        label_h = max(14, int(16 * scale))
 
         # 确保 confidence 是数值类型
         if isinstance(confidence, str):
@@ -52,22 +60,22 @@ def draw_detection_box(
             conf_value = float(confidence)
 
         # 创建标签 - 违规目标添加 [VIOLATION] 标识
-        violation_tag = "[VIOLATION] " if is_violation else ""
+        violation_tag = "[V] " if is_violation else ""
         label = f"{violation_tag}{class_name} {conf_value:.2f}"
 
         # 画框
-        cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+        cv2.rectangle(image, (x1, y1), (x2, y2), color, box_thickness)
 
         # 画标签背景
-        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
-        cv2.rectangle(image, (x1, y1 - 20), (x1 + w, y1), color, -1)
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_thickness)
+        cv2.rectangle(image, (x1, y1 - label_h), (x1 + tw + 4, y1), color, -1)
 
         # 画文字
-        cv2.putText(image, label, (x1, y1 - 5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        cv2.putText(image, label, (x1 + 2, y1 - 4),
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), text_thickness)
         return image
     except Exception as e:
-        logger.error(f"❌ Error in draw_detection_box: {e}")
+        logger.error(f"Error in draw_detection_box: {e}")
         return image
 
 
@@ -187,13 +195,20 @@ def render_official_frame(
                 logger.error(f"❌ Error rendering detection: {e}")
                 continue
 
-        # 4. 帧级文字提示
-        cv2.putText(img, f"Total: {len(all_detections)}", (50, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
-        cv2.putText(img, f"Normal: {normal_count}", (50, 90),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
-        cv2.putText(img, f"Violations: {violation_count}", (50, 130),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+        # 4. 帧级文字提示 (scaled)
+        h_img, w_img = img.shape[:2]
+        s = min(w_img, h_img) / 640.0
+        fs_large = max(0.4, 0.6 * s)
+        fs_small = max(0.35, 0.5 * s)
+        tk_large = max(1, int(2 * s))
+        tk_small = max(1, int(1.5 * s))
+        y_step = max(30, int(40 * s))
+        cv2.putText(img, f"Total: {len(all_detections)}", (20, y_step),
+                    cv2.FONT_HERSHEY_SIMPLEX, fs_large, (255, 255, 255), tk_large)
+        cv2.putText(img, f"Normal: {normal_count}", (20, y_step * 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, fs_small, (0, 255, 0), tk_small)
+        cv2.putText(img, f"Violations: {violation_count}", (20, y_step * 3),
+                    cv2.FONT_HERSHEY_SIMPLEX, fs_small, (0, 0, 255), tk_small)
 
         logger.debug(f"✅ Frame rendered: {normal_count} normal, {violation_count} violations")
         return img
@@ -251,11 +266,16 @@ def render_debug_frame(
                 logger.error(f"❌ Error rendering debug violation: {e}")
                 continue
 
-        # 4. 统计信息
-        cv2.putText(img, f"Total Detections: {len(all_detections)}", (50, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-        cv2.putText(img, f"Violations: {len(violations)}", (50, 90),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+        # 4. 统计信息 (scaled)
+        h_img, w_img = img.shape[:2]
+        s = min(w_img, h_img) / 640.0
+        fs = max(0.35, 0.5 * s)
+        tk = max(1, int(1.5 * s))
+        y_step = max(30, int(40 * s))
+        cv2.putText(img, f"Total Detections: {len(all_detections)}", (20, y_step),
+                    cv2.FONT_HERSHEY_SIMPLEX, fs, (255, 255, 255), tk)
+        cv2.putText(img, f"Violations: {len(violations)}", (20, y_step * 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, fs, (0, 0, 255), tk)
 
         return img
 
