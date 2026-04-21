@@ -15,6 +15,10 @@
             <span>{{ selected.location }}</span>
           </div>
           <div class="info-row">
+            <span class="info-label">Coordinates</span>
+            <span class="mono">{{ selected.latLng }}</span>
+          </div>
+          <div class="info-row">
             <span class="info-label">Event Type</span>
             <span class="event-tag" :class="'type-' + selected.eventType">{{ typeLabel(selected.eventType) }}</span>
           </div>
@@ -23,9 +27,45 @@
             <span class="confidence">{{ (selected.confidence * 100).toFixed(1) }}%</span>
           </div>
           <div class="info-row">
-            <span class="info-label">Events</span>
+            <span class="info-label">Stage</span>
+            <span>{{ stageLabel(selected.detectionStage) }}</span>
+          </div>
+          <div v-if="selected.objectCount" class="info-row">
+            <span class="info-label">Objects</span>
+            <span>{{ selected.objectCount }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Latest Event</span>
+            <span>{{ formatTime(selected.timestamp) }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Total Events</span>
             <span>{{ selected.eventCount }}</span>
           </div>
+          <div v-if="selected.areaCode" class="info-row">
+            <span class="info-label">Area Code</span>
+            <span>{{ selected.areaCode }}</span>
+          </div>
+          <div v-if="selected.group" class="info-row">
+            <span class="info-label">Group</span>
+            <span>{{ selected.group }}</span>
+          </div>
+          <div v-if="selected.description" class="info-desc">
+            {{ selected.description }}
+          </div>
+          <!-- Space analysis extras -->
+          <template v-if="selected.analysisSummary">
+            <div v-if="selected.analysisSummary.estimated_people_count != null" class="info-row">
+              <span class="info-label">People Count</span>
+              <span>{{ selected.analysisSummary.estimated_people_count }}</span>
+            </div>
+            <div v-if="selected.analysisSummary.space_occupancy" class="info-row">
+              <span class="info-label">Occupancy</span>
+              <span class="event-tag" :class="occupancyClass(selected.analysisSummary.space_occupancy)">
+                {{ selected.analysisSummary.space_occupancy }}
+              </span>
+            </div>
+          </template>
         </div>
         <img
           v-if="selected.imageUrl"
@@ -68,6 +108,28 @@ function typeLabel(t) {
   return map[t] || t
 }
 
+function stageLabel(s) {
+  const map = {
+    yolo_initial: 'YOLO Initial',
+    qwen_verified: 'Qwen Verified',
+    qwen_vl_analysis: 'Qwen VL Analysis',
+  }
+  return map[s] || s || '—'
+}
+
+function formatTime(ts) {
+  if (!ts) return '—'
+  return new Date(ts * 1000).toLocaleString('en-US', {
+    month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+}
+
+function occupancyClass(level) {
+  const map = { low: 'occ-low', medium: 'occ-med', high: 'occ-high' }
+  return map[level] || ''
+}
+
 function parseLatLng(str) {
   if (!str) return null
   const parts = str.split(',').map(Number)
@@ -94,9 +156,17 @@ function buildPoints(events) {
       lat: coords[0],
       lng: coords[1],
       cameraId,
+      latLng: latest.lat_lng,
       location: latest.location || 'Unknown',
       eventType: latest.event_type,
       confidence: latest.confidence || 0,
+      detectionStage: latest.detection_stage,
+      objectCount: latest.object_count,
+      description: latest.description,
+      timestamp: latest.timestamp,
+      areaCode: latest.area_code,
+      group: latest.group,
+      analysisSummary: latest.analysis_summary,
       eventCount: evts.length,
       imageUrl: latest.image_url,
       color: EVENT_COLORS[latest.event_type] || '#f59e0b',
@@ -278,6 +348,35 @@ onUnmounted(() => {
   width: 100%;
   height: 160px;
   object-fit: cover;
+}
+
+.info-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  padding: 6px 0 2px;
+  line-height: 1.5;
+  border-top: 1px solid var(--color-border);
+  margin-top: 4px;
+}
+
+.mono {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.occ-low {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--color-success);
+}
+
+.occ-med {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--color-warning);
+}
+
+.occ-high {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-danger);
 }
 
 /* Loading */
