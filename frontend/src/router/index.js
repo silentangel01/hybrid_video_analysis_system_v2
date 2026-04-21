@@ -30,6 +30,12 @@ const routes = [
         name: 'Upload',
         component: () => import('../views/UploadVideo.vue'),
         meta: { title: 'Upload' }
+      },
+      {
+        path: 'globe',
+        name: 'Globe',
+        component: () => import('../views/GlobeView.vue'),
+        meta: { title: '3D Globe' }
       }
     ]
   }
