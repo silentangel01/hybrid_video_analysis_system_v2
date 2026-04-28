@@ -24,13 +24,28 @@
           <span class="form-hint">Required when "Parking Violation" is selected, used to match no-parking zones.</span>
         </div>
         <div class="form-row">
-          <label class="form-label">Latitude / Longitude</label>
-          <input
-            v-model="newLatLng"
-            type="text"
-            placeholder="e.g. 31.2304, 121.4737"
-            class="form-input"
-          />
+          <label class="form-label">Coordinates</label>
+          <div class="coord-inputs">
+            <div class="coord-field">
+              <input
+                v-model="newLat"
+                type="text"
+                placeholder="Latitude, e.g. 31.2304"
+                class="form-input"
+              />
+              <span class="form-hint">Latitude (-90 ~ 90)</span>
+            </div>
+            <div class="coord-field">
+              <input
+                v-model="newLng"
+                type="text"
+                placeholder="Longitude, e.g. 121.4737"
+                class="form-input"
+              />
+              <span class="form-hint">Longitude (-180 ~ 180)</span>
+            </div>
+          </div>
+          <span v-if="coordError" class="form-hint" style="color:var(--color-danger)">{{ coordError }}</span>
         </div>
         <div class="form-row">
           <label class="form-label">Camera Location</label>
@@ -343,7 +358,8 @@ const API = 'http://localhost:5000'
 const streams = ref([])
 const newUrl = ref('')
 const newCameraId = ref('')
-const newLatLng = ref('')
+const newLat = ref('')
+const newLng = ref('')
 const newLocation = ref('')
 const newAreaCode = ref('')
 const newGroup = ref('')
@@ -363,10 +379,24 @@ const allTasks = [
 ]
 
 const requiresCameraId = computed(() => newTasks.value.includes('parking_violation'))
+const coordLatLng = computed(() => {
+  const lat = newLat.value.trim()
+  const lng = newLng.value.trim()
+  if (!lat && !lng) return ''
+  return `${lat}, ${lng}`
+})
+const coordError = computed(() => {
+  const lat = parseFloat(newLat.value)
+  const lng = parseFloat(newLng.value)
+  if (newLat.value.trim() && (isNaN(lat) || lat < -90 || lat > 90)) return 'Latitude must be between -90 and 90'
+  if (newLng.value.trim() && (isNaN(lng) || lng < -180 || lng > 180)) return 'Longitude must be between -180 and 180'
+  return ''
+})
 const canAddStream = computed(() => {
   if (!newUrl.value.trim()) return false
   if (newTasks.value.length === 0) return false
   if (requiresCameraId.value && !newCameraId.value.trim()) return false
+  if (coordError.value) return false
   return true
 })
 
@@ -463,7 +493,7 @@ async function addStream() {
         url,
         tasks: newTasks.value,
         camera_id: cameraId,
-        lat_lng: newLatLng.value.trim(),
+        lat_lng: coordLatLng.value,
         location: newLocation.value.trim(),
         area_code: newAreaCode.value.trim(),
         group: newGroup.value.trim()
@@ -474,7 +504,8 @@ async function addStream() {
       showMsg(`Added ${data.stream_id}`)
       newUrl.value = ''
       newCameraId.value = ''
-      newLatLng.value = ''
+      newLat.value = ''
+      newLng.value = ''
       newLocation.value = ''
       newAreaCode.value = ''
       newGroup.value = ''
@@ -591,6 +622,15 @@ onUnmounted(() => {
 .form-input:focus {
   border-color: var(--color-accent);
   outline: none;
+}
+
+.coord-inputs {
+  display: flex;
+  gap: 12px;
+}
+
+.coord-field {
+  flex: 1;
 }
 
 .form-hint {
