@@ -55,8 +55,29 @@
           <p v-if="event.lat_lng"><span class="detail-label">Coordinates: </span>{{ event.lat_lng }}</p>
         </div>
 
-        <div v-if="event.event_type === 'common_space_utilization' && event.analysis_summary?.space_occupancy" class="event-detail">
-          <p><span class="detail-label">Occupancy: </span>{{ event.analysis_summary.space_occupancy }}</p>
+        <div v-if="event.event_type === 'common_space_utilization' && hasCommonSpaceDetails(event)" class="event-detail">
+          <p v-if="event.analysis_summary?.space_occupancy">
+            <span class="detail-label">Occupancy: </span>{{ event.analysis_summary.space_occupancy }}
+          </p>
+          <p v-if="event.analysis_summary?.estimated_people_count != null">
+            <span class="detail-label">People Count: </span>{{ event.analysis_summary.estimated_people_count }}
+          </p>
+          <p v-if="event.analysis_summary?.activity_types?.length">
+            <span class="detail-label">Activities: </span>{{ formatActivityTypes(event.analysis_summary.activity_types) }}
+          </p>
+          <p v-if="event.analysis_summary?.safety_concerns !== undefined">
+            <span class="detail-label">Safety: </span>{{ event.analysis_summary.safety_concerns ? 'Potential concern' : 'No visible concern' }}
+          </p>
+          <p v-if="event.analysis_summary?.scene_summary">
+            <span class="detail-label">Summary: </span>{{ event.analysis_summary.scene_summary }}
+          </p>
+          <p v-if="event.analysis_summary?.occupancy_reason">
+            <span class="detail-label">Reason: </span>{{ event.analysis_summary.occupancy_reason }}
+          </p>
+          <details v-if="event.analysis_result" class="analysis-details">
+            <summary>Full Analysis</summary>
+            <pre class="analysis-pre">{{ formatAnalysisResult(event.analysis_result) }}</pre>
+          </details>
         </div>
 
         <div v-if="event.description" class="event-detail">
@@ -121,6 +142,79 @@ function typeLabel(t) {
     common_space_utilization: 'Space Analysis'
   }
   return map[t] || t
+}
+
+function hasCommonSpaceDetails(event) {
+  return Boolean(
+    event.analysis_summary?.space_occupancy ||
+    event.analysis_summary?.estimated_people_count != null ||
+    event.analysis_summary?.activity_types?.length ||
+    event.analysis_summary?.scene_summary ||
+    event.analysis_summary?.occupancy_reason ||
+    event.analysis_result
+  )
+}
+
+function formatActivityTypes(types) {
+  if (!Array.isArray(types) || types.length === 0) return '-'
+  return types
+    .map(type => String(type).replace(/_/g, ' '))
+    .join(', ')
+}
+
+function formatAnalysisResult(result) {
+  if (!result) return ''
+  if (typeof result === 'object') return formatAnalysisNarrative(result)
+
+  let text = String(result).trim()
+  if (!text) return ''
+
+  if (text.startsWith('```')) {
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  }
+
+  if (text.startsWith('{') || text.startsWith('[')) {
+    try {
+      return formatAnalysisNarrative(JSON.parse(text))
+    } catch {
+      return text
+    }
+  }
+
+  return text
+}
+
+function formatAnalysisNarrative(data) {
+  if (!data || Array.isArray(data) || typeof data !== 'object') {
+    return String(data || '')
+  }
+
+  const lines = []
+  const people = data.estimated_people_count
+  const occupancy = data.space_occupancy
+  const activities = Array.isArray(data.activity_types) ? data.activity_types : []
+  const safety = data.safety_concerns
+  const summary = data.scene_summary
+  const reason = data.occupancy_reason
+
+  if (summary) lines.push(summary)
+  if (people != null || occupancy) {
+    const parts = []
+    if (occupancy) parts.push(`${occupancy} occupancy`)
+    if (people != null) parts.push(`about ${people} visible people`)
+    if (parts.length) lines.push(`Assessment: ${parts.join(', ')}.`)
+  }
+  if (activities.length) {
+    lines.push(`Activities: ${formatActivityTypes(activities)}.`)
+  }
+  if (typeof safety === 'boolean') {
+    lines.push(safety ? 'Safety: potential concern detected.' : 'Safety: no visible concern detected.')
+  }
+  if (reason) {
+    lines.push(`Reason: ${reason}`)
+  }
+
+  return lines.join('\n')
 }
 
 const filteredEvents = computed(() => {
@@ -366,6 +460,32 @@ onUnmounted(() => {
   font-size: 13px;
   color: var(--color-text-secondary);
   margin-bottom: 2px;
+}
+
+.analysis-details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.analysis-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-accent);
+}
+
+.analysis-pre {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
 }
 
 .detail-label {

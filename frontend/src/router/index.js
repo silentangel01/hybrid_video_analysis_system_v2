@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Layout from '../layout/Layout.vue'
+import GlobeView from '../views/GlobeView.vue'
 
 const routes = [
   {
@@ -34,8 +35,14 @@ const routes = [
       {
         path: 'globe',
         name: 'Globe',
-        component: () => import('../views/GlobeView.vue'),
+        component: GlobeView,
         meta: { title: '3D Globe' }
+      },
+      {
+        path: 'reports',
+        name: 'Reports',
+        component: () => import('../views/ReportsView.vue'),
+        meta: { title: 'Reports' }
       }
     ]
   }

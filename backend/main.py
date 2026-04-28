@@ -7,12 +7,26 @@ import threading
 import time
 from typing import Any, Dict
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - fallback keeps existing env-only behaviour
+    load_dotenv = None
+
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+dotenv_path = os.path.join(project_root, ".env")
+if load_dotenv:
+    load_dotenv(dotenv_path=dotenv_path, override=False, encoding="utf-8")
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+if load_dotenv is None:
+    logger.warning("python-dotenv is not installed; .env autoload is disabled")
+elif os.path.exists(dotenv_path):
+    logger.info("Loaded environment variables from %s", dotenv_path)
 
 
 # ------------------------------------------------------------------
@@ -34,6 +48,12 @@ def load_config() -> Dict[str, Any]:
         "qwen_vl_api_url": os.getenv("QWEN_VL_API_URL", ""),
         "qwen_vl_api_key": os.getenv("QWEN_VL_API_KEY", ""),
         "qwen_vl_model_name": os.getenv("QWEN_VL_MODEL_NAME", "qwen-vl-plus"),
+        "qwen_report_api_url": os.getenv("QWEN_REPORT_API_URL", os.getenv("QWEN_VL_API_URL", "")),
+        "qwen_report_api_key": os.getenv("QWEN_REPORT_API_KEY", os.getenv("QWEN_VL_API_KEY", "")),
+        "qwen_report_model_name": os.getenv("QWEN_REPORT_MODEL_NAME", "qwen-plus"),
+        "qwen_report_timeout": int(os.getenv("QWEN_REPORT_TIMEOUT", "30")),
+        "qwen_report_temperature": float(os.getenv("QWEN_REPORT_TEMPERATURE", "0.2")),
+        "qwen_report_max_tokens": int(os.getenv("QWEN_REPORT_MAX_TOKENS", "700")),
         "dwell_threshold": int(os.getenv("DWELL_THRESHOLD", "5")),
     }
 
@@ -90,6 +110,8 @@ def initialize_services(cfg: Dict[str, Any]):
     from backend.services.smoke_flame_detection import smoke_flame_detection_service, QwenVLAPIClient
     from backend.services.common_space_detection import common_space_detection_service
     from backend.config.qwen_vl_config import qwen_vl_api_config
+    from backend.config.qwen_report_config import qwen_report_api_config
+    from backend.services.qwen_report_client import QwenReportClient
 
     parking_service.set_clients(minio_client=minio, mongo_client=mongo)
     parking_service.set_model_loader(loader)
@@ -140,6 +162,54 @@ def initialize_services(cfg: Dict[str, Any]):
     else:
         logger.warning("Common space analysis disabled (no Qwen-VL client)")
 
+    qwen_report_client = None
+    report_sources = [
+        (
+            qwen_report_api_config.is_configured(),
+            lambda: (
+                qwen_report_api_config.get_api_url(),
+                qwen_report_api_config.get_api_key(),
+                qwen_report_api_config.get_model_name(),
+                qwen_report_api_config.get_timeout(),
+                qwen_report_api_config.get_temperature(),
+                qwen_report_api_config.get_max_tokens(),
+            ),
+            "config file",
+        ),
+        (
+            bool(cfg["qwen_report_api_url"] and cfg["qwen_report_api_key"]),
+            lambda: (
+                cfg["qwen_report_api_url"],
+                cfg["qwen_report_api_key"],
+                cfg["qwen_report_model_name"],
+                cfg["qwen_report_timeout"],
+                cfg["qwen_report_temperature"],
+                cfg["qwen_report_max_tokens"],
+            ),
+            "environment variables",
+        ),
+    ]
+
+    for available, get_params, source_label in report_sources:
+        if not available or qwen_report_client is not None:
+            continue
+        try:
+            url, key, model, timeout, temperature, max_tokens = get_params()
+            qwen_report_client = QwenReportClient(
+                api_url=url,
+                api_key=key,
+                model_name=model,
+                timeout=timeout,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            logger.info("Common space report LLM ready (source: %s)", source_label)
+        except Exception as e:
+            logger.error("Failed to init common space report LLM from %s: %s", source_label, e)
+
+    if not qwen_report_client:
+        logger.warning("Common space report LLM not configured; LLM summary endpoint disabled")
+
     app_resources = AppResources(
         minio=minio,
         mongo=mongo,
@@ -169,6 +239,7 @@ def initialize_services(cfg: Dict[str, Any]):
         "smoke_service": smoke_flame_detection_service,
         "common_space_service": common_space_detection_service,
         "qwen_vl_client": qwen_vl_client,
+        "qwen_report_client": qwen_report_client,
         "smoke_service_ready": smoke_service_ready,
         "common_space_service_ready": common_space_service_ready,
         "app_resources": app_resources,
@@ -242,12 +313,20 @@ def create_stream_manager(services: Dict[str, Any]):
     return sm
 
 
-def start_api_server(stream_manager, mongo_client, webhook_service, minio_client=None, port: int = 5000):
+def start_api_server(
+    stream_manager,
+    mongo_client,
+    webhook_service,
+    minio_client=None,
+    port: int = 5000,
+    report_llm_client=None,
+):
     """Start Flask API in a daemon thread."""
     from flask import Flask
     from flask_cors import CORS
     from backend.api.stream_routes import stream_bp, init_stream_routes
     from backend.api.event_routes import event_bp, init_event_routes
+    from backend.api.report_routes import report_bp, init_report_routes
     from backend.api.webhook_routes import webhook_bp, init_webhook_routes
     from backend.api.health_routes import health_bp, init_health_routes
 
@@ -256,10 +335,12 @@ def start_api_server(stream_manager, mongo_client, webhook_service, minio_client
 
     init_stream_routes(stream_manager)
     init_event_routes(mongo_client, minio_client=minio_client)
+    init_report_routes(stream_manager, mongo_client, report_llm_client=report_llm_client)
     init_webhook_routes(webhook_service)
     init_health_routes(mongo_client, minio_client=minio_client, stream_manager=stream_manager)
     app.register_blueprint(stream_bp)
     app.register_blueprint(event_bp)
+    app.register_blueprint(report_bp)
     app.register_blueprint(webhook_bp)
     app.register_blueprint(health_bp)
 
@@ -326,7 +407,14 @@ def main():
 
         # StreamManager + API
         stream_manager = create_stream_manager(services)
-        start_api_server(stream_manager, services["mongo"], services["webhook_service"], minio_client=services["minio"], port=5000)
+        start_api_server(
+            stream_manager,
+            services["mongo"],
+            services["webhook_service"],
+            minio_client=services["minio"],
+            port=5000,
+            report_llm_client=services["qwen_report_client"],
+        )
 
         # Optional RTSP sources from env
         rtsp_count = start_rtsp_sources(cfg, services, stream_manager)

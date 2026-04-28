@@ -48,6 +48,11 @@ const navItems = [
     path: '/globe',
     label: '3D Globe',
     icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>'
+  },
+  {
+    path: '/reports',
+    label: 'Reports',
+    icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h8M8 10h8M8 14h5"/><path d="M6 3h9l3 3v15H6a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>'
   }
 ]
 </script>

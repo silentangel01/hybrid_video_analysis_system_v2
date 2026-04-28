@@ -87,6 +87,30 @@
         </div>
       </div>
     </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Latest Space Reports</h3>
+        <router-link to="/reports" class="panel-link">Open Reports</router-link>
+      </div>
+      <div class="panel-body">
+        <div v-if="recentReports.length === 0" class="panel-empty">No saved reports</div>
+        <div v-for="report in recentReports" :key="report._id" class="report-row">
+          <div class="report-row-head">
+            <span class="report-kind" :class="'report-kind-' + report.report_kind">{{ reportKindLabel(report.report_kind) }}</span>
+            <span class="report-stream">{{ report.report_key?.stream_id || report.report_key?.camera_id || '-' }}</span>
+            <span class="report-time">{{ formatReportTime(report.generated_at_ts) }}</span>
+          </div>
+          <div class="report-row-meta">
+            <span>{{ report.summary_source || '-' }}</span>
+            <span>{{ report.report_key?.location || report.report_key?.url || '-' }}</span>
+            <span>{{ report.window?.event_count ?? 0 }} events</span>
+            <span>{{ report.stats?.dominant_occupancy || 'unknown' }}</span>
+          </div>
+          <p class="report-row-summary">{{ report.display_summary || report.narrative || '-' }}</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -96,6 +120,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 const stats = ref({ activeStreams: 0, todayEvents: 0, fireAlerts: 0 })
 const recentEvents = ref([])
 const streams = ref([])
+const recentReports = ref([])
 
 let refreshTimer = null
 
@@ -114,9 +139,18 @@ function statusLabel(s) {
   return map[s] || s
 }
 
+function reportKindLabel(kind) {
+  return kind === 'llm' ? 'LLM' : 'Rule'
+}
+
 function formatTime(ts) {
   const d = new Date(ts * 1000)
   return d.toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatReportTime(ts) {
+  if (!ts) return '-'
+  return formatTime(ts)
 }
 
 function fmtF(v) {
@@ -130,9 +164,10 @@ function fmtN(v) {
 }
 
 async function fetchAll() {
-  const [streamsRes, eventsRes] = await Promise.allSettled([
+  const [streamsRes, eventsRes, reportsRes] = await Promise.allSettled([
     fetch('http://localhost:5000/api/streams').then(r => r.ok ? r.json() : []),
-    fetch('http://localhost:5000/api/events-all').then(r => r.ok ? r.json() : { success: false })
+    fetch('http://localhost:5000/api/events-all').then(r => r.ok ? r.json() : { success: false }),
+    fetch('http://localhost:5000/api/reports/common-space/history?limit=4').then(r => r.ok ? r.json() : { success: false })
   ])
 
   if (streamsRes.status === 'fulfilled') {
@@ -153,6 +188,10 @@ async function fetchAll() {
     stats.value.fireAlerts = allEvents.filter(e =>
       e.timestamp >= todayCutoff && e.event_type === 'smoke_flame'
     ).length
+  }
+
+  if (reportsRes.status === 'fulfilled' && reportsRes.value.success) {
+    recentReports.value = reportsRes.value.items || []
   }
 }
 
@@ -419,5 +458,63 @@ onUnmounted(() => {
   font-size: 11px;
   color: var(--color-danger);
   font-weight: 500;
+}
+
+.report-row {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.report-row:last-child {
+  border-bottom: 0;
+}
+
+.report-row-head,
+.report-row-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.report-row-head {
+  margin-bottom: 6px;
+}
+
+.report-kind {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.report-kind-rule {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--color-accent);
+}
+
+.report-kind-llm {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--color-success);
+}
+
+.report-stream {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.report-time,
+.report-row-meta {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.report-row-summary {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
 }
 </style>

@@ -7,6 +7,7 @@ Periodic frame sampling + Qwen-VL analysis for space utilization assessment.
 """
 
 import base64
+import json
 import logging
 import re
 import threading
@@ -46,16 +47,43 @@ class CommonSpaceDetectionService:
         self.sample_interval = 30  # seconds
         self.last_sample_time: Dict[str, float] = {}
         self.system_prompt = (
-            "You are a professional public space analysis assistant. "
-            "Please carefully observe the image and analyze the usage of public space."
+            "You are a vision assistant for public space utilization assessment. "
+            "Assess how intensively the visible usable public space is being used in this single image. "
+            "Use only visible evidence, avoid speculation, and be conservative when uncertain."
         )
         self.user_prompt = (
-            "Please analyze the public space usage in this image, including but not limited to: "
-            "number of people, activity types, space occupancy rate, and any potential safety hazards. "
-            "Provide a detailed analysis report."
+            "Analyze the visible public space utilization in this image and return ONLY one JSON object. "
+            "Focus on how much of the visible usable public space is occupied by people or activities, "
+            "not on a generic scene description.\n"
+            "Rules:\n"
+            "- Count only clearly visible people. If uncertain, use the lower reasonable estimate.\n"
+            "- space_occupancy must be one of: low, medium, high.\n"
+            "- low: most visible usable space is empty or lightly used; movement is easy.\n"
+            "- medium: the space is actively used but there is still clear spare room.\n"
+            "- high: a large share of visible usable space is occupied; crowding, queues, or blocked circulation may exist.\n"
+            "- activity_types must contain 1 to 5 items chosen from: "
+            "[\"walking\", \"standing\", \"sitting\", \"gathering\", \"waiting\", \"talking\", "
+            "\"working\", \"playing\", \"cycling\", \"exercising\", \"vending\", \"unknown\"].\n"
+            "- safety_concerns must be true only if there is visible risk such as crowding, blocked passage, "
+            "smoke/fire, fighting, or a fall hazard.\n"
+            "- occupancy_reason should briefly explain the occupancy judgment using visible evidence.\n"
+            "- scene_summary should briefly summarize the space usage in one sentence.\n"
+            "Return exactly this JSON schema and no extra text:\n"
+            "{\n"
+            "  \"estimated_people_count\": 0,\n"
+            "  \"space_occupancy\": \"low\",\n"
+            "  \"activity_types\": [\"walking\"],\n"
+            "  \"safety_concerns\": false,\n"
+            "  \"occupancy_reason\": \"\",\n"
+            "  \"scene_summary\": \"\"\n"
+            "}"
         )
 
         # Location / dispatch metadata (set by StreamRuntimeFactory)
+        self.stream_id: str = ""
+        self.stream_url: str = ""
+        self.lat_lng: str = ""
+        self.location: str = ""
         self.area_code: str = ""
         self.group: str = ""
 
@@ -176,28 +204,38 @@ class CommonSpaceDetectionService:
     def _call_qwen_vl(self, image: np.ndarray) -> Optional[str]:
         """Send image to Qwen-VL and return the analysis text."""
         try:
-            ok, encoded = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 85])
             if not ok:
                 return None
 
-            b64 = base64.b64encode(encoded).decode('utf-8')
+            b64 = base64.b64encode(encoded).decode("utf-8")
             prompt = f"{self.system_prompt}\n\n{self.user_prompt}"
 
-            if hasattr(self.qwen_vl_client, 'chat_completion'):
+            if hasattr(self.qwen_vl_client, "chat_completion"):
                 messages = [
                     {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-                        {"type": "text", "text": self.user_prompt},
-                    ]},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+                            {"type": "text", "text": self.user_prompt},
+                        ],
+                    },
                 ]
-                resp = self.qwen_vl_client.chat_completion(messages=messages, max_tokens=500, temperature=0.3)
+                resp = self.qwen_vl_client.chat_completion(
+                    messages=messages,
+                    max_tokens=400,
+                    temperature=0.1,
+                )
                 if resp and "choices" in resp:
                     return resp["choices"][0]["message"]["content"]
                 return None
 
             payload = self._build_payload(b64, prompt)
-            headers = {"Authorization": f"Bearer {self.qwen_vl_client.api_key}", "Content-Type": "application/json"}
+            headers = {
+                "Authorization": f"Bearer {self.qwen_vl_client.api_key}",
+                "Content-Type": "application/json",
+            }
             resp = requests.post(self.qwen_vl_client.api_url, json=payload, headers=headers, timeout=30)
             resp.raise_for_status()
             return self.qwen_vl_client._extract_text(resp.json())
@@ -213,32 +251,56 @@ class CommonSpaceDetectionService:
         if "openai" in url or "v1/chat/completions" in url:
             return {
                 "model": self.qwen_vl_client.model_name,
-                "messages": [{"role": "user", "content": [
-                    {"type": "image_url", "image_url": {"url": image_data}},
-                    {"type": "text", "text": prompt},
-                ]}],
-                "max_tokens": 500, "temperature": 0.3,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": image_data}},
+                            {"type": "text", "text": prompt},
+                        ],
+                    }
+                ],
+                "max_tokens": 400,
+                "temperature": 0.1,
             }
         if "dashscope" in url:
             return {
                 "model": self.qwen_vl_client.model_name,
-                "input": {"messages": [{"role": "user", "content": [
-                    {"image": image_data}, {"text": prompt},
-                ]}]},
-                "parameters": {"max_tokens": 500, "temperature": 0.3},
+                "input": {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"image": image_data},
+                                {"text": prompt},
+                            ],
+                        }
+                    ]
+                },
+                "parameters": {"max_tokens": 400, "temperature": 0.1},
             }
         return {
             "model": self.qwen_vl_client.model_name,
-            "messages": [{"role": "user", "content": [
-                {"type": "image", "image": image_data},
-                {"type": "text", "text": prompt},
-            ]}],
-            "max_tokens": 500, "temperature": 0.3,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "image": image_data},
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+            "max_tokens": 400,
+            "temperature": 0.1,
         }
 
     # -------------------- Summary extraction --------------------
 
     def _extract_summary(self, text: str) -> Dict[str, Any]:
+        structured = self._extract_structured_summary(text)
+        if structured:
+            return structured
+
         lower = text.lower()
         return {
             "estimated_people_count": self._extract_people_count(lower),
@@ -246,23 +308,163 @@ class CommonSpaceDetectionService:
             "activity_types": self._extract_activities(lower),
             "safety_concerns": self._has_safety_concerns(lower),
             "keywords": self._extract_keywords(lower),
+            "occupancy_reason": "",
+            "scene_summary": text.strip()[:240],
+        }
+
+    def _extract_structured_summary(self, text: str) -> Optional[Dict[str, Any]]:
+        data = self._extract_json_dict(text)
+        if not data:
+            return None
+
+        activities = self._normalize_activity_types(
+            data.get("activity_types") or data.get("activities")
+        )
+        occupancy_reason = str(
+            data.get("occupancy_reason") or data.get("occupancy_basis") or ""
+        ).strip()
+        scene_summary = str(
+            data.get("scene_summary") or data.get("summary") or ""
+        ).strip()
+
+        keyword_source = " ".join(
+            part for part in (occupancy_reason, scene_summary, " ".join(activities)) if part
+        )
+        keywords = self._extract_keywords(keyword_source.lower()) if keyword_source else []
+
+        return {
+            "estimated_people_count": self._normalize_people_count(
+                data.get("estimated_people_count") or data.get("people_count") or data.get("person_count")
+            ),
+            "space_occupancy": self._normalize_occupancy(
+                data.get("space_occupancy") or data.get("occupancy")
+            ),
+            "activity_types": activities,
+            "safety_concerns": self._normalize_bool(
+                data.get("safety_concerns") if "safety_concerns" in data else data.get("safety")
+            ),
+            "keywords": keywords or activities[:5] or ["unknown"],
+            "occupancy_reason": occupancy_reason,
+            "scene_summary": scene_summary,
         }
 
     @staticmethod
+    def _extract_json_dict(text: str) -> Optional[Dict[str, Any]]:
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+
+        candidates = [cleaned]
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if 0 <= start < end:
+            candidates.append(cleaned[start : end + 1])
+
+        for candidate in candidates:
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        return None
+
+    @staticmethod
+    def _normalize_people_count(value: Any) -> int:
+        if isinstance(value, bool) or value is None:
+            return 0
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        match = re.search(r"\d+", str(value))
+        return int(match.group(0)) if match else 0
+
+    @staticmethod
+    def _normalize_occupancy(value: Any) -> str:
+        if value is None:
+            return "unknown"
+
+        text = str(value).strip().lower()
+        mapping = {
+            "low": {"low", "light", "sparse", "few"},
+            "medium": {"medium", "moderate", "normal", "mid"},
+            "high": {"high", "crowded", "busy", "dense", "heavy"},
+        }
+        for normalized, words in mapping.items():
+            if text in words or any(word in text for word in words):
+                return normalized
+        return "unknown"
+
+    @staticmethod
+    def _normalize_activity_types(value: Any) -> List[str]:
+        allowed = {
+            "walking",
+            "standing",
+            "sitting",
+            "gathering",
+            "waiting",
+            "talking",
+            "working",
+            "playing",
+            "cycling",
+            "exercising",
+            "vending",
+            "unknown",
+        }
+        synonyms = {
+            "walk": "walking",
+            "pedestrian": "walking",
+            "stand": "standing",
+            "sit": "sitting",
+            "group": "gathering",
+            "crowd": "gathering",
+            "queue": "waiting",
+            "conversation": "talking",
+            "exercise": "exercising",
+            "bike": "cycling",
+            "biking": "cycling",
+            "vendor": "vending",
+        }
+
+        if isinstance(value, str):
+            raw_items = re.split(r"[,/;|]", value)
+        elif isinstance(value, list):
+            raw_items = [str(item) for item in value]
+        else:
+            raw_items = []
+
+        result: List[str] = []
+        for item in raw_items:
+            key = item.strip().lower().replace(" ", "_")
+            key = synonyms.get(key, key)
+            if key in allowed and key not in result:
+                result.append(key)
+
+        return result[:5] or ["unknown"]
+
+    @staticmethod
+    def _normalize_bool(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+        return str(value).strip().lower() in {"true", "1", "yes", "y"}
+
+    @staticmethod
     def _extract_people_count(text: str) -> int:
-        for kw in ("人", "people", "persons", "person"):
-            m = re.search(rf'(\d+)\s*{kw}', text)
-            if m:
-                return int(m.group(1))
-        nums = re.findall(r'\b\d+\b', text)
+        for kw in ("people", "persons", "person"):
+            match = re.search(rf"(\d+)\s*{kw}", text)
+            if match:
+                return int(match.group(1))
+        nums = re.findall(r"\b\d+\b", text)
         return int(nums[0]) if nums else 0
 
     @staticmethod
     def _estimate_occupancy(text: str) -> str:
         levels = {
-            "high": ["拥挤", "人多", "high", "crowded", "busy"],
-            "medium": ["适中", "一般", "medium", "moderate", "normal"],
-            "low": ["空旷", "人少", "low", "empty", "sparse", "few"],
+            "high": ["high", "crowded", "busy", "dense", "heavy"],
+            "medium": ["medium", "moderate", "normal"],
+            "low": ["low", "empty", "sparse", "few", "light"],
         }
         for level, words in levels.items():
             if any(w in text for w in words):
@@ -272,31 +474,74 @@ class CommonSpaceDetectionService:
     @staticmethod
     def _extract_activities(text: str) -> List[str]:
         mapping = {
-            "walking": ["行走", "走路", "walking", "walk", "pedestrian"],
-            "sitting": ["坐着", "休息", "sitting", "sit"],
-            "standing": ["站着", "站立", "standing", "stand"],
-            "gathering": ["聚集", "gathering", "crowd", "group"],
-            "working": ["工作", "办公", "working", "work"],
-            "playing": ["玩耍", "playing", "play"],
-            "talking": ["交谈", "聊天", "talking", "talk"],
-            "waiting": ["等待", "等候", "waiting", "wait"],
+            "walking": ["walking", "walk", "pedestrian"],
+            "sitting": ["sitting", "sit", "seated"],
+            "standing": ["standing", "stand"],
+            "gathering": ["gathering", "crowd", "group"],
+            "working": ["working", "work"],
+            "playing": ["playing", "play"],
+            "talking": ["talking", "talk", "conversation"],
+            "waiting": ["waiting", "wait", "queue"],
+            "cycling": ["cycling", "biking", "bike"],
+            "exercising": ["exercising", "exercise", "workout"],
+            "vending": ["vending", "vendor", "selling"],
         }
         found = [act for act, words in mapping.items() if any(w in text for w in words)]
         return found or ["unknown"]
 
     @staticmethod
     def _has_safety_concerns(text: str) -> bool:
-        keywords = ["危险", "隐患", "不安全", "danger", "hazard", "unsafe", "emergency",
-                     "blocked", "fire", "smoke", "accident"]
+        keywords = [
+            "danger",
+            "hazard",
+            "unsafe",
+            "emergency",
+            "blocked",
+            "fire",
+            "smoke",
+            "accident",
+            "fight",
+            "fall",
+        ]
         return any(k in text for k in keywords)
 
     @staticmethod
     def _extract_keywords(text: str, limit: int = 10) -> List[str]:
-        stop = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-                "of", "with", "by", "is", "are", "was", "were", "be", "been", "being",
-                "have", "has", "had", "do", "does", "did", "this", "that", "it", "they"}
+        stop = {
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "this",
+            "that",
+            "it",
+            "they",
+        }
         words = [w for w in text.split() if w not in stop and len(w) > 2 and w.isalpha()]
-        return list(set(words))[:limit]
+        return list(dict.fromkeys(words))[:limit]
 
     # -------------------- Event saving --------------------
 
@@ -307,20 +552,32 @@ class CommonSpaceDetectionService:
             source_id = frame_meta.source_id
 
             image_url = self.minio_client.upload_frame(
-                image_data=frame_meta.image, camera_id=source_id,
-                timestamp=timestamp, event_type="common_space_analysis"
+                image_data=frame_meta.image,
+                camera_id=source_id,
+                timestamp=timestamp,
+                event_type="common_space_analysis",
             )
             if not image_url:
                 logger.error("Failed to upload common space image")
                 return
 
-            clean_url = image_url.split('?')[0] if '?X-Amz-' in image_url else image_url
+            clean_url = image_url.split("?")[0] if "?X-Amz-" in image_url else image_url
+
+            metadata = {}
+            if self.stream_id:
+                metadata["stream_id"] = self.stream_id
+            if self.stream_url:
+                metadata["stream_url"] = self.stream_url
 
             violations = [{
                 "analysis_summary": summary,
-                "full_analysis": analysis_text,
+                "analysis_result": analysis_text,
                 "event_type": "common_space_utilization",
+                "detection_stage": "qwen_vl_analysis",
+                "confidence": 1.0,
             }]
+            if metadata:
+                violations[0]["metadata"] = metadata
 
             ok = handle_frame_events(
                 minio_client=self.minio_client,
@@ -330,6 +587,8 @@ class CommonSpaceDetectionService:
                 timestamp=timestamp,
                 frame_index=frame_meta.frame_index,
                 violations=violations,
+                lat_lng=self.lat_lng or None,
+                location=self.location or None,
                 area_code=self.area_code or None,
                 group=self.group or None,
             )

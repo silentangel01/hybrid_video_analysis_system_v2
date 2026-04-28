@@ -108,6 +108,26 @@ class MultiFolderVideoHandler(FileSystemEventHandler):
 
         self.process_video(video_path, os.path.basename(video_path), detection_type)
 
+    def on_moved(self, event):
+        if event.is_directory:
+            return
+
+        video_path = os.path.abspath(event.dest_path)
+        ext = os.path.splitext(video_path)[1].lower()
+        if ext not in SUPPORTED_VIDEO_EXTS:
+            return
+
+        if not wait_for_file_ready(video_path, timeout=30.0):
+            logger.error(f"[Error] Timeout waiting for file: {video_path}")
+            return
+
+        detection_type = self._get_detection_type_from_path(video_path)
+        if not detection_type:
+            logger.warning(f"⚠️ File not in monitored subfolder: {video_path}")
+            return
+
+        self.process_video(video_path, os.path.basename(video_path), detection_type)
+
     def _get_detection_type_from_path(self, file_path: str) -> Optional[str]:
         """
         根据文件路径确定检测类型

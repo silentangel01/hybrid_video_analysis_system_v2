@@ -17,7 +17,7 @@ flask-cors==5.0.1
 
 # --- ML / Computer Vision ---
 ultralytics==8.3.202            # YOLOv8 (brings torch, torchvision, numpy, pillow, etc.)
-opencv-python==4.12.0.88        # Video capture & image processing
+opencv-python==4.13.0.92        # Video capture & image processing (Python 3.14 compatible)
 
 # --- Data Validation ---
 pydantic==2.12.3                # Event model validation
@@ -28,6 +28,7 @@ minio==7.2.18                   # MinIO object storage
 
 # --- HTTP ---
 requests==2.32.5                # Qwen-VL API calls, outbound HTTP
+python-dotenv==1.0.1            # Root .env autoload for backend configuration
 
 # --- File Monitoring ---
 watchdog==6.0.0                 # Local video file watcher

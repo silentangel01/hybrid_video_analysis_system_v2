@@ -114,7 +114,7 @@ async function uploadVideo() {
   formData.append('type', selectedType.value)
 
   try {
-    const response = await fetch('http://localhost:5000/upload', {
+    const response = await fetch('http://localhost:8080/upload', {
       method: 'POST',
       body: formData
     })

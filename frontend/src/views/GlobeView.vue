@@ -1,8 +1,12 @@
 <template>
   <div class="globe-page">
+    <div class="globe-toolbar">
+      <button class="refresh-btn" @click="refreshEvents" :disabled="loading">
+        {{ loading ? 'Refreshing...' : 'Refresh Events' }}
+      </button>
+    </div>
     <div ref="globeContainer" class="globe-container" />
 
-    <!-- Camera info panel -->
     <transition name="fade">
       <div v-if="selected" class="info-panel">
         <div class="info-header">
@@ -53,7 +57,6 @@
           <div v-if="selected.description" class="info-desc">
             {{ selected.description }}
           </div>
-          <!-- Space analysis extras -->
           <template v-if="selected.analysisSummary">
             <div v-if="selected.analysisSummary.estimated_people_count != null" class="info-row">
               <span class="info-label">People Count</span>
@@ -65,8 +68,26 @@
                 {{ selected.analysisSummary.space_occupancy }}
               </span>
             </div>
+            <div v-if="selected.analysisSummary.activity_types?.length" class="info-row">
+              <span class="info-label">Activities</span>
+              <span>{{ formatActivityTypes(selected.analysisSummary.activity_types) }}</span>
+            </div>
+            <div v-if="selected.analysisSummary.safety_concerns !== undefined" class="info-row">
+              <span class="info-label">Safety</span>
+              <span>{{ selected.analysisSummary.safety_concerns ? 'Potential concern' : 'No visible concern' }}</span>
+            </div>
+            <div v-if="selected.analysisSummary.scene_summary" class="info-desc">
+              {{ selected.analysisSummary.scene_summary }}
+            </div>
+            <div v-if="selected.analysisSummary.occupancy_reason" class="info-desc info-note">
+              {{ selected.analysisSummary.occupancy_reason }}
+            </div>
           </template>
         </div>
+        <details v-if="selected.analysisResult" class="info-raw">
+          <summary>Full Analysis</summary>
+          <pre>{{ formatAnalysisResult(selected.analysisResult) }}</pre>
+        </details>
         <img
           v-if="selected.imageUrl"
           :src="selected.imageUrl"
@@ -76,7 +97,6 @@
       </div>
     </transition>
 
-    <!-- Loading overlay -->
     <div v-if="loading" class="globe-loading">Loading events...</div>
   </div>
 </template>
@@ -87,7 +107,7 @@ import Globe from 'globe.gl'
 
 const globeContainer = ref(null)
 const selected = ref(null)
-const loading = ref(true)
+const loading = ref(false)
 
 let globe = null
 let resizeObserver = null
@@ -114,20 +134,85 @@ function stageLabel(s) {
     qwen_verified: 'Qwen Verified',
     qwen_vl_analysis: 'Qwen VL Analysis',
   }
-  return map[s] || s || '—'
+  return map[s] || s || '-'
 }
 
 function formatTime(ts) {
-  if (!ts) return '—'
+  if (!ts) return '-'
   return new Date(ts * 1000).toLocaleString('en-US', {
-    month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   })
 }
 
 function occupancyClass(level) {
   const map = { low: 'occ-low', medium: 'occ-med', high: 'occ-high' }
   return map[level] || ''
+}
+
+function formatActivityTypes(types) {
+  if (!Array.isArray(types) || types.length === 0) return '-'
+  return types
+    .map(type => String(type).replace(/_/g, ' '))
+    .join(', ')
+}
+
+function formatAnalysisResult(result) {
+  if (!result) return ''
+  if (typeof result === 'object') return formatAnalysisNarrative(result)
+
+  let text = String(result).trim()
+  if (!text) return ''
+
+  if (text.startsWith('```')) {
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  }
+
+  if (text.startsWith('{') || text.startsWith('[')) {
+    try {
+      return formatAnalysisNarrative(JSON.parse(text))
+    } catch {
+      return text
+    }
+  }
+
+  return text
+}
+
+function formatAnalysisNarrative(data) {
+  if (!data || Array.isArray(data) || typeof data !== 'object') {
+    return String(data || '')
+  }
+
+  const lines = []
+  const people = data.estimated_people_count
+  const occupancy = data.space_occupancy
+  const activities = Array.isArray(data.activity_types) ? data.activity_types : []
+  const safety = data.safety_concerns
+  const summary = data.scene_summary
+  const reason = data.occupancy_reason
+
+  if (summary) lines.push(summary)
+  if (people != null || occupancy) {
+    const parts = []
+    if (occupancy) parts.push(`${occupancy} occupancy`)
+    if (people != null) parts.push(`about ${people} visible people`)
+    if (parts.length) lines.push(`Assessment: ${parts.join(', ')}.`)
+  }
+  if (activities.length) {
+    lines.push(`Activities: ${formatActivityTypes(activities)}.`)
+  }
+  if (typeof safety === 'boolean') {
+    lines.push(safety ? 'Safety: potential concern detected.' : 'Safety: no visible concern detected.')
+  }
+  if (reason) {
+    lines.push(`Reason: ${reason}`)
+  }
+
+  return lines.join('\n')
 }
 
 function parseLatLng(str) {
@@ -167,6 +252,7 @@ function buildPoints(events) {
       areaCode: latest.area_code,
       group: latest.group,
       analysisSummary: latest.analysis_summary,
+      analysisResult: latest.analysis_result,
       eventCount: evts.length,
       imageUrl: latest.image_url,
       color: EVENT_COLORS[latest.event_type] || '#f59e0b',
@@ -192,21 +278,11 @@ function pauseAutoRotate() {
 async function init() {
   if (!globeContainer.value) return
 
-  let events = []
-  try {
-    const res = await fetch('http://localhost:5000/api/events-all')
-    const data = await res.json()
-    if (data.success) events = data.events || []
-  } catch { /* empty */ }
-
-  const points = buildPoints(events)
-  loading.value = false
-
   globe = Globe()(globeContainer.value)
     .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
     .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
     .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
-    .pointsData(points)
+    .pointsData([])
     .pointLat('lat')
     .pointLng('lng')
     .pointColor('color')
@@ -228,6 +304,29 @@ async function init() {
     if (globe) globe.width(entry.contentRect.width).height(entry.contentRect.height)
   })
   resizeObserver.observe(globeContainer.value)
+}
+
+async function refreshEvents() {
+  loading.value = true
+
+  let events = []
+  try {
+    const res = await fetch('http://localhost:5000/api/events-all')
+    const data = await res.json()
+    if (data.success) events = data.events || []
+  } catch {
+    // ignore fetch errors and keep the current globe state
+  }
+
+  const points = buildPoints(events)
+  if (globe) {
+    globe.pointsData(points)
+    if (selected.value) {
+      selected.value = points.find(point => point.cameraId === selected.value.cameraId) || null
+    }
+  }
+
+  loading.value = false
 }
 
 onMounted(init)
@@ -252,6 +351,34 @@ onUnmounted(() => {
   height: calc(100vh - var(--header-height) - 48px);
 }
 
+.globe-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+}
+
+.refresh-btn {
+  min-width: 132px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: rgba(30, 41, 59, 0.9);
+}
+
+.refresh-btn:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
 .globe-container {
   width: 100%;
   height: 100%;
@@ -259,7 +386,6 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* Info panel */
 .info-panel {
   position: absolute;
   top: 16px;
@@ -360,6 +486,10 @@ onUnmounted(() => {
   margin-top: 4px;
 }
 
+.info-note {
+  color: var(--color-text-secondary);
+}
+
 .mono {
   font-family: monospace;
   font-size: 12px;
@@ -380,7 +510,32 @@ onUnmounted(() => {
   color: var(--color-danger);
 }
 
-/* Loading */
+.info-raw {
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.info-raw summary {
+  cursor: pointer;
+  padding-top: 12px;
+  font-size: 12px;
+  color: var(--color-accent);
+}
+
+.info-raw pre {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
 .globe-loading {
   position: absolute;
   inset: 0;
@@ -391,11 +546,13 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-/* Transition */
-.fade-enter-active, .fade-leave-active {
+.fade-enter-active,
+.fade-leave-active {
   transition: opacity 0.25s;
 }
-.fade-enter-from, .fade-leave-to {
+
+.fade-enter-from,
+.fade-leave-to {
   opacity: 0;
 }
 </style>

@@ -19,7 +19,13 @@ const app = express();
  * 处理预检请求（OPTIONS）
  */
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
+    const allowedOrigins = new Set([
+        'http://localhost:5173',
+        'http://127.0.0.1:5173'
+    ]);
+    if (req.headers.origin && allowedOrigins.has(req.headers.origin)) {
+        res.header('Access-Control-Allow-Origin', req.headers.origin);
+    }
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.header('Access-Control-Allow-Credentials', 'true');
@@ -45,7 +51,7 @@ app.post('/upload', upload.single('video'), (req, res) => {
     const folder = req.body.type;
 
     // 构造目标路径
-    const targetPath = path.join(__dirname, '../backend/uploads', folder, originalname);
+    const targetPath = path.join(__dirname, '../uploads', folder, originalname);
 
     // 确保目标目录存在
     const targetDir = path.dirname(targetPath);

@@ -265,6 +265,7 @@ class StreamRuntimeFactory:
         loader = self._build_model_loader(tasks)
         handlers = self._build_handlers(
             tasks, loader,
+            stream_id=stream_id, stream_url=url,
             lat_lng=lat_lng, location=location,
             area_code=area_code, group=group,
         )
@@ -305,6 +306,7 @@ class StreamRuntimeFactory:
 
     def _build_handlers(
         self, tasks: List[str], loader: YOLOModelLoader,
+        stream_id: str = "", stream_url: str = "",
         lat_lng: str = "", location: str = "",
         area_code: str = "", group: str = "",
     ) -> Dict[str, Any]:
@@ -349,6 +351,10 @@ class StreamRuntimeFactory:
             common_space_handler.set_sample_interval(
                 int(self.resources.common_space_interval_sec)
             )
+            common_space_handler.stream_id = stream_id
+            common_space_handler.stream_url = stream_url
+            common_space_handler.lat_lng = lat_lng
+            common_space_handler.location = location
             common_space_handler.area_code = area_code
             common_space_handler.group = group
             handlers["common_space"] = common_space_handler
