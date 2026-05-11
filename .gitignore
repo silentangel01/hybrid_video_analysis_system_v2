@@ -187,3 +187,7 @@ dmypy.json
 
 # vite
 frontend/.vite/
+
+# postman
+postman
+.postman

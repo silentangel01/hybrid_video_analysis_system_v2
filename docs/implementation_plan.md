@@ -1,29 +1,40 @@
-# HVAS + MUBS Implementation Plan
+# HVAS and MUBS Implementation Plan
 
-## Overview
+## 1. Overview
 
-This plan covers two workstreams:
-1. **HVAS-side changes** — Prepare HVAS APIs for MUBS integration
-2. **MUBS development** — Build the upstream business system (Kotlin Spring Boot)
+This plan defines the implementation scope for integrating HVAS, the Hybrid Video Analysis System, with MUBS, the upstream management and business system. The work is divided into HVAS API hardening, MUBS backend development, web dashboard development, mobile task handling, notification integration, and final demonstration preparation.
 
-Target: **2026-05 final demo**
+Target milestone: final demonstration in May 2026.
+
+### 1.1 Workstreams
+
+| Workstream | Scope | Repository |
+|---|---|---|
+| HVAS API hardening | Prepare HVAS APIs, event payloads, status feedback, and demo support for MUBS integration. | HVAS repository |
+| MUBS backend | Build the core ticket, dispatch, authentication, and notification APIs. | Separate MUBS repository |
+| MUBS web dashboard | Build the dispatcher-facing management dashboard. | Separate MUBS repository |
+| MUBS H5 mobile client | Build the field-worker task handling interface. | Separate MUBS repository |
+| Demo preparation | Prepare seed data, mock event flows, and stability verification. | Both systems |
 
 ---
 
-## Phase 1: HVAS-Side API Hardening (HVAS repo)
+## 2. Phase 1: HVAS API Hardening
 
-> Goal: Make HVAS ready to be consumed by MUBS
+Goal: make HVAS ready to be consumed by MUBS through stable APIs, complete event payloads, signed webhooks, and reliable demo utilities.
 
-### 1.1 Webhook Payload Standardization
+### 2.1 Webhook Payload Standardization
 
-**Problem:** Current webhook payload lacks `event_id`, making dedup and mapping impossible for MUBS.
+Problem: downstream systems require a stable event identifier and integration metadata for deduplication, routing, and ticket mapping.
 
-**Changes:**
-- `backend/services/event_generator.py` — After `mongo_client.save_event()`, include the MongoDB `_id` (as string) in the webhook payload as `event_id`
-- Add `created_at` (ISO 8601) to webhook payload
-- Add `area_code` and `group` fields to webhook payload (from stream config)
+Required changes:
 
-**Webhook payload spec:**
+- Include the MongoDB `_id` value as `event_id` after event persistence.
+- Add `created_at` in ISO 8601 format.
+- Add `area_code` and `group` fields from stream configuration.
+- Preserve existing event details such as event type, camera ID, confidence, location, evidence URL, and object count.
+
+Webhook payload specification:
+
 ```json
 {
   "event_id": "6625a3f1b2c4d5e6f7890123",
@@ -42,274 +53,522 @@ Target: **2026-05 final demo**
 }
 ```
 
-### 1.2 Webhook Signature
+Primary files:
 
-**Changes:**
-- Add `WEBHOOK_SECRET` env var (shared secret with MUBS)
-- Compute `HMAC-SHA256(secret, request_body)` and send as `X-HVAS-Signature` header
-- `backend/services/webhook_service.py` — Add signature computation in `_dispatch_one()`
+- `backend/services/event_generator.py`
+- `backend/services/webhook_service.py`
 
-### 1.3 Stream Config: area_code & group Fields
+### 2.2 Webhook Signature
 
-**Changes (same pattern as lat_lng/location):**
-- `backend/services/stream_runtime.py` — Add `area_code: str = ""` and `group: str = ""` to `StreamRuntime`
-- `backend/services/stream_runtime.py` — Pass through in `StreamRuntimeFactory.create_runtime()` and `_build_handlers()`
-- `backend/services/stream_manager.py` — Accept in `add_stream()`, persist, restore, include in `get_streams()`
-- `backend/api/stream_routes.py` — Extract from POST body
-- `backend/services/event_generator.py` — Pass through to event docs and webhook payload
-- `backend/services/violation_detection.py` / `smoke_flame_detection.py` — Store and forward
-- `frontend/src/views/StreamManager.vue` — Add form inputs for Area Code and Group
+Problem: MUBS must verify that inbound event notifications were sent by HVAS and were not modified in transit.
 
-### 1.4 Event Status Feedback API
+Required changes:
 
-**New endpoint:** `PATCH /api/events/<event_id>/status`
+- Add the `WEBHOOK_SECRET` environment variable.
+- Compute `HMAC-SHA256(secret, request_body)` on the raw request body.
+- Send the hexadecimal digest in the `X-HVAS-Signature` request header.
+- Keep webhook signing optional so local development remains possible without a shared secret.
 
-**Changes:**
-- `backend/api/event_routes.py` — New route
-- Request body:
-  ```json
-  {
-    "status": "resolved",
-    "handled_by": "fieldworker_zhang",
-    "handle_note": "Fire extinguished",
-    "handle_image_url": "http://..."
-  }
-  ```
-- Updates the event document in MongoDB with these fields + `handled_at` timestamp
-- Returns 200 with updated event, or 404
+Primary file:
 
-### 1.5 Incremental Sync Support
+- `backend/services/webhook_service.py`
 
-**Changes:**
-- `backend/api/event_routes.py` — Add `since_id` query parameter to `GET /api/events`
-- When provided, filter: `{"_id": {"$gt": ObjectId(since_id)}}`
-- Keeps existing `start_time` / `end_time` / `event_type` filters
+### 2.3 Stream Configuration Metadata
 
-### 1.6 Demo Mode: Mock Event Trigger
+Problem: MUBS requires routing metadata to map events to operational areas and responsible teams.
 
-**New endpoint:** `POST /api/events/mock`
+Required changes:
 
-**Changes:**
-- `backend/api/event_routes.py` — New route
-- Request body:
-  ```json
-  {
-    "event_type": "smoke_flame",
-    "camera_id": "east_gate_01"
-  }
-  ```
-- Generates a synthetic event with current timestamp, placeholder image, realistic description
-- Saves to MongoDB and triggers webhook (same as real events)
-- Protected: only works when `DEMO_MODE=true` env var is set
+- Add `area_code` and `group` to stream configuration.
+- Preserve the same pass-through pattern used for `lat_lng` and `location`.
+- Include the fields in stream creation, persistence, restoration, runtime handler construction, event documents, and webhook payloads.
+- Expose the fields in the frontend stream management form.
 
-### 1.7 Health Check Endpoint
+Primary files:
 
-**New endpoint:** `GET /api/health`
+- `backend/services/stream_runtime.py`
+- `backend/services/stream_manager.py`
+- `backend/api/stream_routes.py`
+- `backend/services/event_generator.py`
+- `backend/services/violation_detection.py`
+- `backend/services/smoke_flame_detection.py`
+- `frontend/src/views/StreamManager.vue`
 
-**Changes:**
-- `backend/api/stream_routes.py` or new `health_routes.py`
-- Returns:
-  ```json
-  {
-    "status": "ok",
-    "mongodb": "connected",
-    "minio": "connected",
-    "active_streams": 3,
-    "models_loaded": ["vehicle", "smoke_flame"],
-    "uptime_sec": 3600
-  }
-  ```
+### 2.4 Event Status Feedback API
 
-### 1.8 Seed Data Script
+Problem: downstream handling results must be written back to HVAS so event review screens can display the operational status.
 
-**New file:** `scripts/seed_demo_data.py`
+Endpoint:
 
-- Inserts 50-100 historical events into MongoDB spanning the past 7 days
-- Covers all event types (smoke_flame, parking_violation, common_space_utilization)
-- Uses multiple camera_ids with realistic timestamps
-- Uploads placeholder images to MinIO
-
----
-
-## Phase 2: MUBS Backend (Kotlin Spring Boot, separate repo)
-
-> Goal: Core API server for ticket management, dispatch, and notifications
-
-### 2.1 Project Scaffolding
-- Spring Boot 3.x + Kotlin
-- Dependencies: Spring Web, Spring Security (JWT), Spring Data JPA/MongoDB, Spring Mail
-- PostgreSQL (or MongoDB) database
-- Docker Compose service definition
-
-### 2.2 Data Models
-- **Ticket** — Core work order entity
-  ```
-  id, hvas_event_id (unique), event_type, camera_id, area_code, group,
-  status (PENDING/DISPATCHED/PROCESSING/RESOLVED),
-  assigned_team, assigned_worker,
-  hvas_timestamp, created_at, dispatched_at, notified_at, accepted_at, resolved_at,
-  evidence_url, handle_note, handle_image_url,
-  timeline: [{action, actor, timestamp, note}]
-  ```
-- **User** — Pre-seeded accounts (admin, dispatcher, fieldworker)
-- **DispatchRule** — event_type + area_code → team mapping
-- **NotificationLog** — channel, recipient, status, sent_at
-
-### 2.3 HVAS Webhook Receiver
-- `POST /api/v1/hvas/webhook`
-- Verify `X-HVAS-Signature` header
-- Deduplicate by `event_id` (reject if ticket already exists)
-- Create Ticket with status=PENDING
-- Trigger dispatch rule engine
-
-### 2.4 Dispatch Rule Engine
-- On ticket creation → match rules by (event_type, area_code)
-- Auto-assign to team → update status to DISPATCHED
-- Record `dispatched_at` in timeline
-- Trigger notification service
-- Scheduled job: check DISPATCHED tickets older than 30min → auto-return to PENDING
-
-### 2.5 Authentication
-- `POST /api/auth/login` — username/password → JWT
-- JWT filter on all `/api/**` routes (except login and health)
-- Pre-seeded users: admin, dispatcher, fieldworker (with roles)
-
-### 2.6 Ticket CRUD API
-```
-GET    /api/tickets              — List with filters (status, event_type, team)
-GET    /api/tickets/{id}         — Detail with full timeline
-PATCH  /api/tickets/{id}/status  — Update status (dispatch, accept, resolve, return)
-GET    /api/tickets/stats        — Aggregated statistics
+```text
+PATCH /api/events/<event_id>/status
 ```
 
-### 2.7 HVAS Polling Fallback
-- Scheduled task (every 60s) calls `GET HVAS_URL/api/events?since_id=<last>`
-- Creates tickets for any events not yet ingested
-- Disabled by default, enabled via config flag
+Request body:
 
-### 2.8 Notification Service
-- Email: Spring Mail + SMTP (provider TBD)
-- H5 push: WebSocket (STOMP over SockJS) for real-time, or short-polling fallback
-- On dispatch → send email to team lead + push to assigned workers
-- Log all notifications in NotificationLog table
+```json
+{
+  "status": "resolved",
+  "handled_by": "fieldworker_zhang",
+  "handle_note": "Fire extinguished",
+  "handle_image_url": "http://example.com/photo.jpg"
+}
+```
+
+Required behavior:
+
+- Update the event document with status fields.
+- Add a `handled_at` timestamp when handling data is submitted.
+- Return the updated event document on success.
+- Return `400` for invalid status values or malformed IDs.
+- Return `404` when the event does not exist.
+
+Primary file:
+
+- `backend/api/event_routes.py`
+
+### 2.5 Incremental Event Synchronization
+
+Problem: MUBS needs a polling fallback if webhook delivery is unavailable.
+
+Required changes:
+
+- Add the `since_id` query parameter to `GET /api/events`.
+- When `since_id` is provided, filter events with `_id > ObjectId(since_id)`.
+- Keep existing filters such as `camera_id`, `event_type`, `start_time`, and `end_time`.
+- Return results in ascending `_id` order for incremental consumption.
+
+Primary file:
+
+- `backend/api/event_routes.py`
+
+### 2.6 Demo Mode: Mock Event Trigger
+
+Problem: demonstrations require repeatable event generation without depending on camera availability.
+
+Endpoint:
+
+```text
+POST /api/events/mock
+```
+
+Request body:
+
+```json
+{
+  "event_type": "smoke_flame",
+  "camera_id": "east_gate_01",
+  "area_code": "east_district",
+  "group": "fire_team"
+}
+```
+
+Required behavior:
+
+- Generate a synthetic event with a realistic description and current timestamp.
+- Save the event to MongoDB.
+- Upload or reference placeholder evidence in MinIO.
+- Trigger the same webhook flow used by real events.
+- Enable the endpoint only when `DEMO_MODE=true`.
+
+Primary file:
+
+- `backend/api/event_routes.py`
+
+### 2.7 Health Check Endpoint
+
+Problem: operators and integration tests need a single endpoint to verify system readiness.
+
+Endpoint:
+
+```text
+GET /api/health
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "mongodb": "connected",
+  "minio": "connected",
+  "active_streams": 3,
+  "models_loaded": ["vehicle", "smoke_flame"],
+  "uptime_sec": 3600
+}
+```
+
+Primary file:
+
+- `backend/api/health_routes.py`
+
+### 2.8 Seed Data Script
+
+Problem: dashboard and integration demonstrations require historical data.
+
+Required behavior:
+
+- Insert 50 to 100 historical events into MongoDB.
+- Spread timestamps across the past seven days.
+- Cover `smoke_flame`, `parking_violation`, and `common_space_utilization`.
+- Use multiple camera IDs and realistic location metadata.
+- Upload placeholder evidence images to MinIO.
+
+Primary file:
+
+- `scripts/seed_demo_data.py`
 
 ---
 
-## Phase 3: MUBS Web Dashboard (Vue 3 + TypeScript)
+## 3. Phase 2: MUBS Backend
 
-> Goal: Dispatcher management interface
+Goal: build the core backend for ticket management, dispatching, authentication, HVAS ingestion, and notifications.
 
-### 3.1 Project Setup
-- Vue 3 + TypeScript + Vite
-- UI framework: Element Plus or Ant Design Vue
-- Chart library: ECharts
+### 3.1 Project Scaffolding
 
-### 3.2 Pages
-- **Login** — JWT auth form
-- **Dashboard** — Today/week event counts, event type pie chart, avg response time chart
-- **Ticket List** — Filterable table (status, type, team), bulk actions
-- **Ticket Detail** — Evidence preview, full timeline, manual dispatch/return actions
-- **Dispatch Rules** — CRUD for event_type + area_code → team mapping
-- **User Management** — List pre-seeded users (admin only)
+Recommended stack:
 
-### 3.3 Real-time Updates
-- WebSocket connection for new ticket notifications
-- Auto-refresh ticket list when new events arrive
-- Toast/badge for incoming alerts
+- Kotlin
+- Spring Boot 3.x
+- Spring Web
+- Spring Security with JWT
+- Spring Data JPA or Spring Data MongoDB
+- Spring Mail
+- PostgreSQL or MongoDB
+- Docker Compose for local infrastructure
+
+### 3.2 Data Models
+
+#### Ticket
+
+Core work-order entity created from HVAS events.
+
+```text
+id
+hvas_event_id
+event_type
+camera_id
+area_code
+group
+status
+assigned_team
+assigned_worker
+hvas_timestamp
+created_at
+dispatched_at
+notified_at
+accepted_at
+resolved_at
+evidence_url
+handle_note
+handle_image_url
+timeline
+```
+
+Status values:
+
+- `PENDING`
+- `DISPATCHED`
+- `PROCESSING`
+- `RESOLVED`
+- `REJECTED`
+
+#### User
+
+Pre-seeded accounts for administration, dispatching, and field work.
+
+Recommended roles:
+
+- `ADMIN`
+- `DISPATCHER`
+- `FIELDWORKER`
+
+#### DispatchRule
+
+Maps an event type and area code to an operational team.
+
+```text
+event_type + area_code -> team
+```
+
+#### NotificationLog
+
+Stores notification attempts, channels, recipients, delivery status, and timestamps.
+
+### 3.3 HVAS Webhook Receiver
+
+Endpoint:
+
+```text
+POST /api/v1/hvas/webhook
+```
+
+Required behavior:
+
+- Verify the `X-HVAS-Signature` header when the shared secret is configured.
+- Reject invalid signatures.
+- Deduplicate events by `event_id`.
+- Create a ticket with status `PENDING`.
+- Trigger the dispatch rule engine.
+- Return the created ticket identifier and assigned team.
+
+### 3.4 Dispatch Rule Engine
+
+Required behavior:
+
+- Match new tickets by `(event_type, area_code)`.
+- Assign the matched operational team.
+- Update the ticket status to `DISPATCHED`.
+- Record `dispatched_at` and append a timeline entry.
+- Trigger notifications for the assigned team.
+- Run a scheduled job that returns stale `DISPATCHED` tickets to `PENDING` after a configured timeout.
+
+### 3.5 Authentication
+
+Required endpoints and behavior:
+
+- `POST /api/auth/login` accepts username and password.
+- Successful login returns a JWT.
+- All `/api/**` routes require JWT authentication except login and health endpoints.
+- Role-based access controls should separate administrator, dispatcher, and field-worker operations.
+
+Pre-seeded users:
+
+- `admin`
+- `dispatcher`
+- `fieldworker`
+
+### 3.6 Ticket API
+
+```text
+GET    /api/tickets
+GET    /api/tickets/{id}
+PATCH  /api/tickets/{id}/status
+GET    /api/tickets/stats
+```
+
+Expected capabilities:
+
+- List tickets with filters for status, event type, area code, team, and assignee.
+- Retrieve ticket details with full timeline.
+- Update ticket status for dispatch, acceptance, resolution, rejection, or return.
+- Return dashboard statistics.
+
+### 3.7 HVAS Polling Fallback
+
+Required behavior:
+
+- Run a scheduled task every 60 seconds when enabled.
+- Call `GET <HVAS_URL>/api/events?since_id=<last_seen_id>`.
+- Create tickets for events not yet ingested.
+- Update the last seen ID after successful processing.
+- Keep this mechanism disabled by default and enable it through configuration.
+
+### 3.8 Notification Service
+
+Notification channels:
+
+- Email through Spring Mail and SMTP.
+- H5 push through WebSocket or short-polling fallback.
+
+Required behavior:
+
+- Send notifications when tickets are dispatched.
+- Notify team leads and assigned field workers.
+- Store each notification attempt in `NotificationLog`.
+- Support retry or failure marking for transient delivery errors.
 
 ---
 
-## Phase 4: MUBS H5 Mobile (Vue 3 + Vant UI)
+## 4. Phase 3: MUBS Web Dashboard
 
-> Goal: Field worker task handling interface
+Goal: provide a dispatcher-facing management interface for event handling and operational monitoring.
 
 ### 4.1 Project Setup
-- Vue 3 + Vant UI
-- Responsive design for mobile browsers (including WeChat built-in browser)
-- Shared API layer with Web dashboard
+
+Recommended stack:
+
+- Vue 3
+- TypeScript
+- Vite
+- Element Plus or Ant Design Vue
+- ECharts
 
 ### 4.2 Pages
-- **Login** — Simple form (fieldworker credentials)
-- **Task List** — Pending tasks assigned to current worker's team
-- **Task Detail** — HVAS evidence image, event info, location/coordinates
-- **Handle Task** — Upload photo (camera/gallery), add note, submit → Resolved
-- **History** — Past resolved tasks
 
-### 4.3 Key UX Requirements
-- Complete a task in ≤ 3 steps: Open task → Upload photo → Submit
-- One-tap jump from notification to task detail
-- Offline-tolerant: queue submissions if network is unstable
+| Page | Purpose |
+|---|---|
+| Login | Authenticate dashboard users. |
+| Dashboard | Display daily and weekly event counts, event type distribution, response time, and unresolved ticket statistics. |
+| Ticket List | Provide filtering, sorting, pagination, and bulk operations. |
+| Ticket Detail | Show evidence, event metadata, full timeline, and manual dispatch or return actions. |
+| Dispatch Rules | Manage event-type and area-code routing rules. |
+| User Management | Manage pre-seeded or configured users. |
 
----
+### 4.3 Real-Time Updates
 
-## Phase 5: Notification Integration
+Required behavior:
 
-> Goal: Email + H5 push notifications
-
-### 5.1 Email Notification
-- SMTP provider setup (TBD — SendGrid / 163 / QQ Enterprise)
-- HTML email template: event type, time, location, evidence thumbnail, action link
-- Sent on ticket dispatch to team lead / dispatcher
-
-### 5.2 H5 Real-time Push
-- WebSocket (STOMP) endpoint on MUBS backend
-- H5 client auto-connects on login
-- Push events: new task assigned, task timeout warning, system alerts
-- Fallback: 10s polling if WebSocket unavailable
+- Connect to the backend WebSocket channel after login.
+- Display new ticket notifications.
+- Refresh ticket lists when new events arrive.
+- Show visible badges or toast notifications for urgent alerts.
 
 ---
 
-## Phase 6: Demo Preparation
+## 5. Phase 4: MUBS H5 Mobile Client
 
-> Goal: Ensure smooth demo experience
+Goal: provide a mobile task-handling interface for field workers.
 
-### 6.1 Seed Data
-- Run `scripts/seed_demo_data.py` to populate HVAS with 7 days of history
-- Run MUBS seed script to create matching tickets with various statuses
-- Ensure dashboard charts are not empty
+### 5.1 Project Setup
 
-### 6.2 Demo Mode
-- HVAS: `DEMO_MODE=true` enables `POST /api/events/mock`
-- MUBS: Demo panel to trigger mock events without real cameras
-- Pre-configured streams with sample videos (already in `video/` directory)
+Recommended stack:
 
-### 6.3 Demo Script Rehearsal
-- **Scenario 1 (Fire):** HVAS detects flame → MUBS receives alert → Auto-dispatch to fire team → H5 notification → Field worker marks "extinguished" → Dashboard shows "Resolved"
-- **Scenario 2 (Parking):** HVAS detects violation → MUBS receives alert → Auto-dispatch to traffic team → Email notification → Dispatcher views evidence → Marks "handled"
+- Vue 3
+- Vant UI
+- Shared API layer with the web dashboard
+- Responsive layout for mobile browsers, including embedded WebView environments
 
-### 6.4 Stability Checklist
-- [ ] HVAS streams stable for 30+ minutes without crash
-- [ ] MUBS webhook receiver handles rapid event bursts
-- [ ] H5 page loads in < 3s on mobile
-- [ ] Email delivery confirmed with chosen SMTP provider
-- [ ] Fallback: mock events work if cameras fail during demo
+### 5.2 Pages
+
+| Page | Purpose |
+|---|---|
+| Login | Authenticate field workers. |
+| Task List | Display pending and active tasks assigned to the current worker or team. |
+| Task Detail | Show HVAS evidence image, event information, location, and coordinates. |
+| Handle Task | Upload handling photo, enter notes, and submit resolution. |
+| History | Display resolved or rejected historical tasks. |
+
+### 5.3 User Experience Requirements
+
+- A field worker should complete a task in no more than three main steps: open task, upload evidence, submit.
+- Notifications should deep-link directly to task detail.
+- The client should tolerate unstable networks by queuing submissions or clearly indicating retry status.
 
 ---
 
-## Timeline Estimate
+## 6. Phase 5: Notification Integration
+
+Goal: provide reliable event notifications through email and H5 push channels.
+
+### 6.1 Email Notification
+
+Required work:
+
+- Select and configure an SMTP provider.
+- Create an HTML email template containing event type, time, location, evidence thumbnail, and action link.
+- Send emails to team leads or dispatchers when tickets are dispatched.
+- Log delivery attempts and failures.
+
+Candidate providers:
+
+- SendGrid
+- 163 Mail
+- QQ Enterprise Mail
+- Internal SMTP service
+
+### 6.2 H5 Real-Time Push
+
+Required work:
+
+- Add a WebSocket endpoint to the MUBS backend.
+- Connect the H5 client after login.
+- Push new task assignments, timeout warnings, and system alerts.
+- Fall back to polling when WebSocket is unavailable.
+
+---
+
+## 7. Phase 6: Demonstration Preparation
+
+Goal: ensure the final demonstration is repeatable and resilient.
+
+### 7.1 Seed Data
+
+Required work:
+
+- Run `scripts/seed_demo_data.py` to populate HVAS with seven days of historical events.
+- Run the MUBS seed script to create matching tickets across multiple statuses.
+- Confirm that dashboard charts are populated.
+
+### 7.2 Demo Mode
+
+Required setup:
+
+- Enable `DEMO_MODE=true` in HVAS.
+- Use `POST /api/events/mock` to trigger events without live cameras.
+- Provide a MUBS demo panel or test utility for controlled event scenarios.
+- Prepare sample videos for stream-based demonstrations.
+
+### 7.3 Demonstration Scenarios
+
+#### Scenario 1: Smoke or Flame Event
+
+1. HVAS detects smoke or flame.
+2. HVAS saves evidence and sends a signed webhook.
+3. MUBS receives the alert and creates a ticket.
+4. The dispatch engine assigns the ticket to the fire team.
+5. The H5 client receives a task notification.
+6. The field worker marks the task as resolved.
+7. The dashboard displays the resolved status.
+
+#### Scenario 2: Parking Violation Event
+
+1. HVAS detects a vehicle in a no-parking zone after the dwell threshold is reached.
+2. HVAS saves evidence and sends a signed webhook.
+3. MUBS receives the alert and creates a ticket.
+4. The dispatch engine assigns the ticket to the traffic or facility team.
+5. The dispatcher reviews evidence and updates handling status.
+6. HVAS receives or exposes the updated status for event review.
+
+### 7.4 Stability Checklist
+
+- [ ] HVAS streams remain stable for at least 30 minutes.
+- [ ] HVAS event storage and MinIO evidence upload are healthy.
+- [ ] MUBS webhook receiver handles rapid event bursts without duplicate tickets.
+- [ ] MUBS polling fallback can ingest missed events.
+- [ ] H5 pages load within three seconds on target mobile devices.
+- [ ] Email delivery is confirmed with the selected SMTP provider.
+- [ ] Mock events work when live cameras are unavailable.
+- [ ] Operators have credentials and scenario scripts before the demonstration.
+
+---
+
+## 8. Timeline Estimate
 
 | Phase | Scope | Dependencies |
-|-------|-------|-------------|
-| **Phase 1** | HVAS API hardening | None — start immediately |
-| **Phase 2** | MUBS backend | Phase 1 (webhook spec) |
-| **Phase 3** | MUBS Web dashboard | Phase 2 (ticket API) |
-| **Phase 4** | MUBS H5 mobile | Phase 2 (ticket API) |
-| **Phase 5** | Notifications | Phase 2 + SMTP confirmation |
-| **Phase 6** | Demo prep | All phases |
+|---|---|---|
+| Phase 1 | HVAS API hardening | None |
+| Phase 2 | MUBS backend | Phase 1 webhook and event API contract |
+| Phase 3 | MUBS web dashboard | Phase 2 ticket API |
+| Phase 4 | MUBS H5 mobile client | Phase 2 ticket API |
+| Phase 5 | Notification integration | Phase 2 and SMTP provider selection |
+| Phase 6 | Demonstration preparation | All preceding phases |
 
-Phase 3 and Phase 4 can be developed in parallel once Phase 2 API is stable.
+Phase 3 and Phase 4 can proceed in parallel once the Phase 2 API contract is stable.
 
 ---
 
-## Files Changed per Phase (HVAS repo)
+## 9. HVAS File Impact Summary
 
 | Phase 1 Task | Files |
-|-------------|-------|
-| 1.1 Webhook payload | `event_generator.py`, `webhook_service.py` |
-| 1.2 Webhook signature | `webhook_service.py`, add `WEBHOOK_SECRET` env |
-| 1.3 area_code/group | `stream_runtime.py`, `stream_manager.py`, `stream_routes.py`, `event_generator.py`, `violation_detection.py`, `smoke_flame_detection.py`, `StreamManager.vue` |
-| 1.4 Event status API | `event_routes.py` |
-| 1.5 Incremental sync | `event_routes.py` |
-| 1.6 Demo mode | `event_routes.py`, add `DEMO_MODE` env |
-| 1.7 Health check | New `health_routes.py` or `stream_routes.py` |
-| 1.8 Seed data | New `scripts/seed_demo_data.py` |
+|---|---|
+| Webhook payload standardization | `backend/services/event_generator.py`, `backend/services/webhook_service.py` |
+| Webhook signature | `backend/services/webhook_service.py`, environment configuration |
+| Stream metadata | `backend/services/stream_runtime.py`, `backend/services/stream_manager.py`, `backend/api/stream_routes.py`, `backend/services/event_generator.py`, `backend/services/violation_detection.py`, `backend/services/smoke_flame_detection.py`, `frontend/src/views/StreamManager.vue` |
+| Event status API | `backend/api/event_routes.py` |
+| Incremental synchronization | `backend/api/event_routes.py` |
+| Demo mode | `backend/api/event_routes.py`, environment configuration |
+| Health check | `backend/api/health_routes.py` |
+| Seed data | `scripts/seed_demo_data.py` |
+
+---
+
+## 10. Integration Principles
+
+- HVAS remains the source of truth for detection events and evidence URLs.
+- MUBS remains the source of truth for dispatch workflow and field handling.
+- `event_id` is the cross-system deduplication key.
+- Webhook delivery should be treated as at-least-once.
+- Polling fallback should be idempotent.
+- Event evidence URLs should remain stable after ticket creation.
+- Handling feedback should preserve auditability through status timestamps and timeline entries.

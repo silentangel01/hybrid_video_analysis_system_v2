@@ -1,99 +1,135 @@
-# HVAS 开发文档 (Development Guide)
+# HVAS Development Guide
 
-## 项目概述
+## 1. Project Overview
 
-**HVAS** (Hybrid Video Analysis System) — 混合视频分析系统，基于 YOLOv8 + Qwen-VL 大模型的智能视频监控分析平台。
+HVAS, the Hybrid Video Analysis System, is an intelligent video monitoring and event-analysis platform based on YOLOv8, Qwen-VL, MongoDB, MinIO, and a Vue-based management interface.
 
-- **后端**: Python Flask, 端口 5000
-- **前端**: Vue 3 + Vite, 开发端口 5173, 生产端口 8080
-- **数据库**: MongoDB (端口 27017)
-- **对象存储**: MinIO (API 端口 9000, 控制台 9001)
-- **项目路径**: `D:\hybrid_video_analysis_system_v2`
+The system supports live RTSP streams and uploaded video files. It performs multiple video-analysis tasks, stores event metadata and visual evidence, exposes REST APIs for operational use, and can forward detected events to upstream business systems through signed webhooks.
 
----
+### 1.1 Core Capabilities
 
-## 项目结构
+- Parking violation detection based on vehicle detection, no-parking-zone filtering, and dwell-time tracking.
+- Smoke and flame detection using a two-stage pipeline: YOLO candidate detection followed by optional Qwen-VL verification.
+- Common-space utilization analysis using Qwen-VL at a configurable sampling interval.
+- Event persistence through MongoDB and MinIO.
+- Stream management, event search, status feedback, health checks, and webhook integration through REST APIs.
+- Frontend dashboards for stream operations, event review, report generation, and local video upload.
 
-```
+### 1.2 Technology Stack
+
+| Layer | Technology | Default Port |
+|---|---|---|
+| Backend API | Python Flask | 5000 |
+| Frontend development server | Vue 3 + Vite | 5173 |
+| Frontend production server | Express.js | 8080 |
+| Database | MongoDB | 27017 |
+| Object storage | MinIO | 9000 API, 9001 Console |
+| Object detection | YOLOv8 | N/A |
+| Vision-language verification | Qwen-VL | External API |
+
+### 1.3 Repository Root
+
+Use the repository root as the working directory for service startup, dependency installation, and testing:
+
+```bash
 hybrid_video_analysis_system_v2/
-├── backend/
-│   ├── main.py                        # 应用入口
-│   ├── api/
-│   │   ├── stream_routes.py           # 流管理 API
-│   │   ├── event_routes.py            # 事件查询 API
-│   │   ├── webhook_routes.py          # Webhook 配置 API
-│   │   └── health_routes.py           # 健康检查 API
-│   ├── services/
-│   │   ├── stream_manager.py          # RTSP 流生命周期管理
-│   │   ├── stream_runtime.py          # 单流检测流水线
-│   │   ├── violation_detection.py     # 违停检测 (YOLOv8 + 区域判定)
-│   │   ├── smoke_flame_detection.py   # 烟火检测 (YOLOv8 + Qwen-VL 二阶段)
-│   │   ├── common_space_detection.py  # 公共空间分析 (Qwen-VL)
-│   │   ├── event_generator.py         # 事件创建 + Webhook 分发
-│   │   ├── webhook_service.py         # Webhook 通知 (HMAC 签名)
-│   │   ├── dwell_tracker.py           # 车辆停留时间跟踪
-│   │   └── parking_zone_checker.py    # 禁停区域多边形检测
-│   ├── models/
-│   │   └── event.py                   # EventModel (Pydantic)
-│   ├── config/
-│   │   └── qwen_vl_config.py          # Qwen-VL API 配置
-│   └── utils/
-│       └── frame_capture.py           # 视频帧提取
-├── frontend/
-│   ├── src/
-│   │   ├── views/
-│   │   │   ├── Dashboard.vue          # 实时仪表盘
-│   │   │   ├── EventList.vue          # 事件列表查询
-│   │   │   ├── StreamManager.vue      # 流管理界面
-│   │   │   └── UploadVideo.vue        # 本地视频上传
-│   │   ├── composables/
-│   │   │   └── useFireAlert.js        # 火警报警状态管理
-│   │   └── router/index.js            # 路由配置
-│   ├── server.js                      # Express.js 生产代理服务器
-│   └── package.json
-├── ml_models/yolov8/
-│   ├── model_loader.py                # YOLOv8 模型加载
-│   └── inference.py                   # 推理 + 后处理
-├── storage/
-│   ├── mongodb_client.py              # MongoDB 事件存储
-│   └── minio_client.py                # MinIO 图片存储
-├── scripts/
-│   ├── seed_demo_data.py              # 生成演示数据
-│   └── draw_fence_gui.py              # 禁停区域画线工具
-├── tests/
-│   ├── test_detection_logic.py        # 检测逻辑测试
-│   ├── test_storage_integration.py    # 存储集成测试
-│   └── test_video_ingestion.py        # 视频采集测试
-├── docs/
-├── docker-compose.yml
-└── requirements.txt
 ```
 
 ---
 
-## 快速启动
+## 2. Repository Structure
 
-### 1. 启动基础设施
-
-```bash
-cd D:\hybrid_video_analysis_system_v2
-docker-compose up -d    # 启动 MongoDB + MinIO
+```text
+hybrid_video_analysis_system_v2/
+|-- backend/
+|   |-- main.py                         # Application entry point
+|   |-- api/
+|   |   |-- stream_routes.py            # Stream management API
+|   |   |-- event_routes.py             # Event query and status API
+|   |   |-- webhook_routes.py           # Webhook registration API
+|   |   |-- report_routes.py            # Report generation API
+|   |   `-- health_routes.py            # Health check API
+|   |-- services/
+|   |   |-- stream_manager.py           # RTSP stream lifecycle management
+|   |   |-- stream_runtime.py           # Per-stream task runtime
+|   |   |-- violation_detection.py      # Parking violation pipeline
+|   |   |-- smoke_flame_detection.py    # Smoke/flame pipeline
+|   |   |-- common_space_detection.py   # Common-space analysis pipeline
+|   |   |-- event_generator.py          # Event persistence and webhook dispatch
+|   |   |-- webhook_service.py          # Webhook delivery with HMAC signing
+|   |   |-- dwell_tracker.py            # Vehicle dwell-time tracking
+|   |   `-- parking_zone_checker.py     # No-parking-zone polygon filtering
+|   |-- models/
+|   |   `-- event.py                    # EventModel schema
+|   |-- config/
+|   |   |-- qwen_vl_config.py           # Qwen-VL configuration
+|   |   `-- qwen_report_config.py       # Report LLM configuration
+|   `-- utils/
+|       |-- frame_capture.py            # Video frame extraction
+|       |-- visualization.py            # Frame rendering utilities
+|       `-- performance_metrics.py      # Runtime metrics helpers
+|-- frontend/
+|   |-- src/
+|   |   |-- views/
+|   |   |   |-- Dashboard.vue           # Runtime dashboard
+|   |   |   |-- EventList.vue           # Event list and filtering
+|   |   |   |-- ReportsView.vue         # Report UI
+|   |   |   |-- StreamManager.vue       # Stream management UI
+|   |   |   `-- UploadVideo.vue         # Local video upload UI
+|   |   |-- composables/
+|   |   `-- router/
+|   |-- server.js                       # Production proxy server
+|   `-- package.json
+|-- ml_models/
+|   `-- yolov8/
+|       |-- model_loader.py             # YOLO model loading
+|       `-- inference.py                # YOLO inference wrapper
+|-- storage/
+|   |-- mongodb_client.py               # MongoDB event storage
+|   `-- minio_client.py                 # MinIO image storage
+|-- scripts/
+|   |-- seed_demo_data.py               # Demo data generation
+|   |-- draw_fence_gui.py               # No-parking-zone drawing tool
+|   `-- file_watcher.py                 # Folder-based video ingestion
+|-- test/                               # Algorithm and performance test scripts
+|-- tests/                              # Legacy automated test location, if present
+|-- docs/
+|-- docker-compose.yml
+`-- requirements.txt
 ```
 
-### 2. 安装 Python 依赖
+---
+
+## 3. Quick Start
+
+### 3.1 Start Infrastructure
+
+Start MongoDB and MinIO from the repository root:
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
+docker compose up -d
+```
+
+Confirm that the services are listening:
+
+```bash
+docker compose ps
+```
+
+### 3.2 Install Backend Dependencies
+
+```bash
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. 配置环境变量
+### 3.3 Configure Environment Variables
 
-创建 `.env` 文件:
+Create a `.env` file in the repository root.
 
 ```bash
-# 存储
+# Storage
 MONGO_URI=mongodb://localhost:27017
 MONGO_DB_NAME=video_analysis_db
 MINIO_ENDPOINT=localhost:9000
@@ -101,114 +137,296 @@ MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
 MINIO_BUCKET=video-events
 
-# 检测参数
+# Detection runtime
 FRAME_INTERVAL=1.0
+RTSP_SAMPLE_INTERVAL=0.5
+PARKING_RTSP_SAMPLE_INTERVAL=0.5
+SMOKE_RTSP_SAMPLE_INTERVAL=0.2
 COMMON_SPACE_INTERVAL=30.0
 DWELL_THRESHOLD=5
 
-# Qwen-VL (可选, 不配置则禁用烟火二阶段验证和公共空间分析)
+# Queue and backpressure controls
+ENABLE_BACKPRESSURE_PROTECTION=false
+STREAM_EXECUTOR_MAX_QUEUE=24
+SMOKE_DETECTION_MAX_QUEUE=8
+SMOKE_VERIFICATION_MAX_QUEUE=12
+COMMON_SPACE_MAX_QUEUE=4
+
+# Qwen-VL. If omitted, smoke/flame second-stage verification and
+# common-space analysis are disabled.
 QWEN_VL_API_URL=https://dashscope.aliyuncs.com/api/v1/services/aigc/video-understanding/video-generation
 QWEN_VL_API_KEY=sk-xxxxxxxx
 QWEN_VL_MODEL_NAME=qwen-vl-plus
 QWEN_VL_TIMEOUT=30
 
+# Report generation LLM, optional.
+QWEN_REPORT_API_URL=
+QWEN_REPORT_API_KEY=
+QWEN_REPORT_MODEL_NAME=qwen-plus
+QWEN_REPORT_TIMEOUT=30
+QWEN_REPORT_TEMPERATURE=0.2
+QWEN_REPORT_MAX_TOKENS=700
+
 # Webhook
 WEBHOOK_SECRET=hvas-mubs-shared-secret
 
-# 演示模式
+# Demo mode
 DEMO_MODE=true
 ```
 
-### 4. 启动后端
+### 3.4 Start the Backend
+
+Run from the repository root:
 
 ```bash
-cd backend
-python main.py    # 启动在 http://localhost:5000
+python backend/main.py
 ```
 
-### 5. 启动前端
+The backend listens on:
+
+```text
+http://localhost:5000
+```
+
+### 3.5 Start the Frontend
+
+Development mode:
 
 ```bash
 cd frontend
 npm install
-npm run dev       # 开发模式 http://localhost:5173
-# 或
-npm run build && npm run start-server  # 生产模式 http://localhost:8080
+npm run dev
 ```
 
-### 6. 验证
+Development URL:
+
+```text
+http://localhost:5173
+```
+
+Production mode:
+
+```bash
+cd frontend
+npm install
+npm run build
+npm run start-server
+```
+
+Production URL:
+
+```text
+http://localhost:8080
+```
+
+### 3.6 Verify Startup
 
 ```bash
 curl http://localhost:5000/api/health
 ```
 
+Expected healthy response:
+
+```json
+{
+  "status": "ok",
+  "mongodb": "connected",
+  "minio": "connected",
+  "active_streams": 0,
+  "models_loaded": [],
+  "uptime_sec": 42
+}
+```
+
 ---
 
-## API 接口
+## 4. Backend Service Architecture
 
-### 流管理
+### 4.1 Runtime Flow
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/streams` | 获取所有活跃流 |
-| POST | `/api/streams` | 添加 RTSP 流 |
-| DELETE | `/api/streams/<stream_id>` | 移除流 |
-| PUT | `/api/streams/<stream_id>/tasks` | 更新检测任务 |
-| GET | `/api/streams/<stream_id>/metrics` | 获取运行指标 |
+```text
+RTSP stream or local video
+        |
+        v
+Frame capture and sampling
+        |
+        v
+StreamRuntime
+        |
+        +--> Parking violation task
+        |       |-- YOLOv8 vehicle detection
+        |       |-- No-parking-zone polygon filtering
+        |       |-- Dwell-time tracking
+        |       `-- Render evidence frame
+        |
+        +--> Smoke/flame task
+        |       |-- YOLOv8 smoke/flame candidate detection
+        |       |-- Optional Qwen-VL verification
+        |       `-- Render evidence frame
+        |
+        `--> Common-space task
+                `-- Qwen-VL common-space analysis
+        |
+        v
+EventGenerator
+        |
+        +--> MinIO evidence image upload
+        +--> MongoDB event metadata persistence
+        `--> Webhook notification dispatch
+```
 
-**添加流 (POST /api/streams)**:
+### 4.2 Parking Violation Pipeline
+
+The parking pipeline performs whole-frame YOLO inference, filters detected vehicles against configured no-parking polygons, tracks consecutive in-zone dwell frames, and saves an event only when the dwell threshold is reached.
+
+Main modules:
+
+- `backend/services/violation_detection.py`
+- `backend/services/dwell_tracker.py`
+- `backend/services/parking_zone_checker.py`
+- `backend/utils/visualization.py`
+
+### 4.3 Smoke and Flame Pipeline
+
+The smoke/flame pipeline uses YOLO as a fast first-stage detector. When Qwen-VL is configured, candidate regions are verified by a second-stage visual-language model before an event is persisted.
+
+Main modules:
+
+- `backend/services/smoke_flame_detection.py`
+- `ml_models/yolov8/model_loader.py`
+- `ml_models/yolov8/inference.py`
+- `backend/services/event_generator.py`
+
+### 4.4 Common-Space Analysis Pipeline
+
+The common-space task samples frames at a lower frequency and sends them to Qwen-VL for scene-level analysis. It is intended for periodic utilization and activity summaries rather than high-frequency object detection.
+
+Main module:
+
+- `backend/services/common_space_detection.py`
+
+### 4.5 Storage Responsibilities
+
+| Component | Responsibility |
+|---|---|
+| MongoDB | Stores event metadata, status fields, timestamps, object summaries, and integration metadata. |
+| MinIO | Stores rendered evidence images and exposes object URLs for the frontend and downstream systems. |
+
+The event document stores a URL reference to MinIO evidence rather than embedding image bytes.
+
+---
+
+## 5. API Reference
+
+### 5.1 Stream Management
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/streams` | List active streams. |
+| POST | `/api/streams` | Add an RTSP stream. |
+| DELETE | `/api/streams/<stream_id>` | Remove a stream. |
+| PUT | `/api/streams/<stream_id>/tasks` | Update task assignments for a stream. |
+| GET | `/api/streams/<stream_id>/metrics` | Retrieve runtime metrics for a stream. |
+
+Example request:
+
 ```json
 {
   "url": "rtsp://camera-ip:554/stream",
   "tasks": ["parking_violation", "smoke_flame"],
   "camera_id": "east_gate_01",
   "lat_lng": "31.2304, 121.4737",
-  "location": "东门入口",
+  "location": "East Gate Entrance",
   "area_code": "east_district",
   "group": "fire_team"
 }
 ```
 
-### 事件查询
+Supported task names:
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/events` | 查询事件列表 (支持分页/过滤) |
-| GET | `/api/events/latest` | 获取最新事件 (流模式) |
-| GET | `/api/events/stats` | 获取聚合统计 |
-| GET | `/api/events/<event_id>` | 获取事件详情 |
-| PATCH | `/api/events/<event_id>/status` | 更新事件状态 (MUBS 反馈) |
-| POST | `/api/events/mock` | 创建模拟事件 (需 DEMO_MODE=true) |
+- `parking_violation`
+- `smoke_flame`
+- `common_space`
 
-**查询参数 (GET /api/events)**:
-- `camera_id` — 按摄像头过滤
-- `event_type` — `parking_violation` / `smoke_flame` / `common_space_utilization`
-- `since_id` — 增量同步 (返回 _id > since_id 的事件)
-- `start_time` / `end_time` — 时间范围 (Unix 时间戳)
-- `limit` (1-500, 默认 50) / `skip` — 分页
+### 5.2 Event Query
 
-**事件状态反馈 (PATCH /api/events/<id>/status)**:
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/events` | Query events with pagination and filters. |
+| GET | `/api/events/latest` | Retrieve recent events for polling. |
+| GET | `/api/events/stats` | Retrieve aggregate event statistics. |
+| GET | `/api/events/<event_id>` | Retrieve one event by ID. |
+| PATCH | `/api/events/<event_id>/status` | Update event handling status. |
+| POST | `/api/events/mock` | Create a mock event when `DEMO_MODE=true`. |
+
+Supported query parameters for `GET /api/events`:
+
+| Parameter | Description |
+|---|---|
+| `camera_id` | Filter by camera ID. |
+| `event_type` | Filter by event type. |
+| `detection_stage` | Filter by detection stage. |
+| `since_id` | Incremental synchronization filter. Returns records with `_id > since_id`. |
+| `start_time` | Unix timestamp lower bound. |
+| `end_time` | Unix timestamp upper bound. |
+| `limit` | Page size. Valid range: 1 to 500. Default: 50. |
+| `skip` | Number of records to skip. |
+
+Supported event types:
+
+- `parking_violation`
+- `smoke_flame`
+- `common_space_utilization`
+
+### 5.3 Event Status Feedback
+
+Endpoint:
+
+```text
+PATCH /api/events/<event_id>/status
+```
+
+Request body:
+
 ```json
 {
   "status": "resolved",
   "handled_by": "fieldworker_zhang",
-  "handle_note": "火已扑灭，无损失",
-  "handle_image_url": "http://..."
+  "handle_note": "Fire extinguished, no damage observed.",
+  "handle_image_url": "http://example.com/photo.jpg"
 }
 ```
-状态值: `pending`, `dispatched`, `processing`, `resolved`, `rejected`
 
-### Webhook 配置
+Valid status values:
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/webhooks` | 注册 Webhook |
-| GET | `/api/webhooks` | 获取所有 Webhook |
-| DELETE | `/api/webhooks/<webhook_id>` | 注销 Webhook |
+- `pending`
+- `dispatched`
+- `processing`
+- `resolved`
+- `rejected`
 
-### Webhook 推送 Payload
+### 5.4 Webhook Configuration
 
-HVAS 检测到事件后自动向注册的 URL 推送:
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/webhooks` | Register a webhook endpoint. |
+| GET | `/api/webhooks` | List registered webhooks. |
+| DELETE | `/api/webhooks/<webhook_id>` | Delete a webhook endpoint. |
+
+Webhook registration request:
+
+```json
+{
+  "url": "http://localhost:8090/api/v1/hvas/webhook",
+  "event_types": ["smoke_flame", "parking_violation"]
+}
+```
+
+When `event_types` is omitted, the webhook receives all event types.
+
+### 5.5 Webhook Payload
+
+HVAS dispatches this payload when an event is persisted:
 
 ```json
 {
@@ -228,13 +446,17 @@ HVAS 检测到事件后自动向注册的 URL 推送:
 }
 ```
 
-签名: `X-HVAS-Signature` 请求头包含 HMAC-SHA256 十六进制签名 (基于请求体和共享密钥)。
+If `WEBHOOK_SECRET` is configured, HVAS signs the raw request body with HMAC-SHA256 and sends the hexadecimal digest in the `X-HVAS-Signature` header.
 
-### 健康检查
+### 5.6 Health Check
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/health` | 系统状态 |
+Endpoint:
+
+```text
+GET /api/health
+```
+
+Response:
 
 ```json
 {
@@ -247,45 +469,109 @@ HVAS 检测到事件后自动向注册的 URL 推送:
 }
 ```
 
----
-
-## 检测流水线架构
-
-```
-RTSP 流 / 本地视频
-    ↓
-StreamRuntime (帧提取)
-    ↓
-┌───────────────────────┬──────────────────────┐
-│  违停检测              │  烟火检测              │
-│  YOLOv8 车辆检测       │  YOLOv8 烟火初检       │
-│  + 禁停区域多边形判定   │  + Qwen-VL 二阶段验证   │
-│  + 停留时间跟踪        │                       │
-└───────────────────────┴──────────────────────┘
-                   ↓
-           公共空间分析 (Qwen-VL, 30s 周期)
-                   ↓
-           EventGenerator → MongoDB + MinIO
-                   ↓
-           WebhookService → MUBS / 其他消费方
-```
+`status` is `ok` when MongoDB is connected. It is `degraded` when core dependencies are unavailable.
 
 ---
 
-## 环境变量一览
+## 6. Environment Variable Reference
 
-| 变量 | 必填 | 默认值 | 说明 |
-|------|------|--------|------|
-| `MONGO_URI` | 是 | - | MongoDB 连接串 |
-| `MONGO_DB_NAME` | 是 | - | 数据库名 |
-| `MINIO_ENDPOINT` | 是 | - | MinIO 地址 |
-| `MINIO_ACCESS_KEY` | 是 | - | MinIO 访问密钥 |
-| `MINIO_SECRET_KEY` | 是 | - | MinIO 秘密密钥 |
-| `MINIO_BUCKET` | 是 | - | MinIO 存储桶 |
-| `FRAME_INTERVAL` | 否 | 1.0 | 帧采集间隔 (秒) |
-| `COMMON_SPACE_INTERVAL` | 否 | 30.0 | 公共空间分析间隔 (秒) |
-| `DWELL_THRESHOLD` | 否 | 5 | 停留判定阈值 (秒) |
-| `QWEN_VL_API_URL` | 否 | - | Qwen-VL API 地址 |
-| `QWEN_VL_API_KEY` | 否 | - | Qwen-VL API 密钥 |
-| `WEBHOOK_SECRET` | 否 | - | HMAC 签名密钥 |
-| `DEMO_MODE` | 否 | false | 启用模拟事件接口 |
+| Variable | Required | Default | Description |
+|---|---:|---|---|
+| `MONGO_URI` | Yes | `mongodb://localhost:27017` | MongoDB connection URI. |
+| `MONGO_DB_NAME` | Yes | `video_analysis_db` | MongoDB database name. |
+| `MINIO_ENDPOINT` | Yes | `localhost:9000` | MinIO API endpoint. |
+| `MINIO_ACCESS_KEY` | Yes | `minioadmin` | MinIO access key. |
+| `MINIO_SECRET_KEY` | Yes | `minioadmin` | MinIO secret key. |
+| `MINIO_BUCKET` | Yes | `video-events` | MinIO bucket for evidence images. |
+| `FRAME_INTERVAL` | No | `1.0` | Local video frame sampling interval, in seconds. |
+| `RTSP_SAMPLE_INTERVAL` | No | `0.5` | Legacy RTSP sampling interval, in seconds. |
+| `PARKING_RTSP_SAMPLE_INTERVAL` | No | `RTSP_SAMPLE_INTERVAL` | Parking task sampling interval. |
+| `SMOKE_RTSP_SAMPLE_INTERVAL` | No | `0.2` | Smoke/flame task sampling interval. |
+| `COMMON_SPACE_INTERVAL` | No | `30.0` | Common-space analysis interval. |
+| `DWELL_THRESHOLD` | No | `5` | Number of consecutive in-zone frames required for a parking violation. |
+| `YOLO_DEVICE` | No | Auto | YOLO inference device, for example `cpu`, `cuda`, or `cuda:0`. |
+| `ENABLE_BACKPRESSURE_PROTECTION` | No | `false` | Enables bounded task queues for stream processing. |
+| `STREAM_EXECUTOR_MAX_QUEUE` | No | `24` | Maximum stream executor queue size. |
+| `SMOKE_DETECTION_MAX_QUEUE` | No | `8` | Maximum smoke detection queue size. |
+| `SMOKE_VERIFICATION_MAX_QUEUE` | No | `12` | Maximum smoke verification queue size. |
+| `COMMON_SPACE_MAX_QUEUE` | No | `4` | Maximum common-space analysis queue size. |
+| `QWEN_VL_API_URL` | No | Empty | Qwen-VL API endpoint. |
+| `QWEN_VL_API_KEY` | No | Empty | Qwen-VL API key. |
+| `QWEN_VL_MODEL_NAME` | No | `qwen-vl-plus` | Qwen-VL model name. |
+| `QWEN_REPORT_API_URL` | No | `QWEN_VL_API_URL` | Report LLM endpoint. |
+| `QWEN_REPORT_API_KEY` | No | `QWEN_VL_API_KEY` | Report LLM API key. |
+| `QWEN_REPORT_MODEL_NAME` | No | `qwen-plus` | Report LLM model name. |
+| `WEBHOOK_SECRET` | No | Empty | Shared secret for webhook signing. |
+| `DEMO_MODE` | No | `false` | Enables mock event creation. |
+
+---
+
+## 7. Operational Notes
+
+### 7.1 Model Loading
+
+The backend loads the vehicle model by default. The smoke/flame model is loaded when the corresponding model file is available. If Qwen-VL is not configured, smoke/flame second-stage verification and common-space analysis are disabled, while other backend functions remain available.
+
+### 7.2 Stream Sampling
+
+Sampling intervals are task-specific. Parking, smoke/flame, and common-space tasks can use different frame sampling rates on the same RTSP source. This allows high-frequency detection tasks and lower-frequency scene analysis to coexist without applying one global sampling interval to all tasks.
+
+### 7.3 Backpressure
+
+Backpressure protection should be enabled for multi-stream RTSP workloads or when Qwen-VL latency is high. When enabled, bounded queues prevent unbounded memory growth and preserve service stability under temporary load spikes.
+
+### 7.4 Evidence Storage
+
+Events should always reference immutable evidence URLs. Evidence images are rendered before upload so that bounding boxes, task annotations, and zone overlays are available during review.
+
+### 7.5 Integration Contract
+
+Downstream systems should use `event_id` as the stable deduplication key. Webhook consumers should verify `X-HVAS-Signature` when a shared secret is configured and should treat webhook delivery as at-least-once.
+
+---
+
+## 8. Common Commands
+
+Start infrastructure:
+
+```bash
+docker compose up -d
+```
+
+Start backend:
+
+```bash
+venv\Scripts\activate
+python backend/main.py
+```
+
+Start frontend in development mode:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Run backend health check:
+
+```bash
+curl http://localhost:5000/api/health
+```
+
+List streams:
+
+```bash
+curl http://localhost:5000/api/streams
+```
+
+Query latest events:
+
+```bash
+curl "http://localhost:5000/api/events/latest?limit=10"
+```
+
+Generate demo events:
+
+```bash
+python scripts/seed_demo_data.py
+```

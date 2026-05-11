@@ -1,57 +1,97 @@
-# HVAS 测试文档 (Testing Guide)
+# HVAS Testing Guide
 
-## 自动化测试文件
+## 1. Scope
 
-```
+This document defines the testing approach for HVAS, including automated test placeholders, manual API verification, webhook signature validation, demo data generation, and end-to-end HVAS-to-MUBS integration tests.
+
+The current practical testing flow relies primarily on manual API tests and integration checks. Automated test files may exist as placeholders and should be completed as the implementation stabilizes.
+
+---
+
+## 2. Automated Test Layout
+
+Expected automated test structure:
+
+```text
 tests/
-├── test_detection_logic.py        # 检测逻辑单元测试 (待实现)
-├── test_storage_integration.py    # 存储集成测试 (待实现)
-└── test_video_ingestion.py        # 视频采集测试 (待实现)
+|-- test_detection_logic.py        # Unit tests for detection logic
+|-- test_storage_integration.py    # MongoDB and MinIO integration tests
+`-- test_video_ingestion.py        # Video ingestion tests
 ```
 
-> 注: 上述测试文件为占位文件，尚未编写具体用例。当前以手动 API 测试为主。
+Additional algorithm and performance test scripts may be maintained under `test/` when they are designed as executable evaluation tools rather than pytest test cases.
 
-## 运行测试
+Recommended automated test categories:
+
+| Category | Purpose |
+|---|---|
+| Unit tests | Validate pure detection logic, polygon filtering, dwell tracking, and event formatting. |
+| Integration tests | Validate MongoDB, MinIO, webhook delivery, and API route behavior. |
+| Video ingestion tests | Validate local video upload, RTSP frame capture, and sampling behavior. |
+| Algorithm evaluation | Measure false positives, frame rate, latency, and model verification effectiveness. |
+| Resource tests | Measure CPU, GPU, memory, and queue pressure under one or more RTSP streams. |
+
+---
+
+## 3. Running Automated Tests
+
+Run all pytest tests:
 
 ```bash
-cd D:\hybrid_video_analysis_system_v2
-
-# 运行全部测试
 python -m pytest tests/ -v
+```
 
-# 运行单个测试文件
+Run a single test file:
+
+```bash
 python -m pytest tests/test_detection_logic.py -v
+```
 
-# 带覆盖率报告
+Run tests with coverage:
+
+```bash
 python -m pytest tests/ -v --cov=backend --cov-report=term-missing
 ```
 
+When algorithm and performance scripts are located under `test/`, run them according to the script-level README or command-line help.
+
 ---
 
-## 手动 API 测试
+## 4. Manual API Testing
 
-### 前置条件
+### 4.1 Prerequisites
+
+Start infrastructure:
 
 ```bash
-# 确保 Docker 服务已启动 (MongoDB + MinIO)
-cd D:\hybrid_video_analysis_system_v2
-docker-compose up -d
-
-# 启动后端
-cd backend && python main.py
+docker compose up -d
 ```
 
-后端启动在 `http://localhost:5000`。
+Activate the backend virtual environment and start the backend:
+
+```bash
+venv\Scripts\activate
+python backend/main.py
+```
+
+The backend should be available at:
+
+```text
+http://localhost:5000
+```
 
 ---
 
-### 1. 健康检查 (GET /api/health)
+## 5. Health Check
+
+Request:
 
 ```bash
 curl http://localhost:5000/api/health
 ```
 
-期望响应:
+Expected response:
+
 ```json
 {
   "status": "ok",
@@ -63,14 +103,23 @@ curl http://localhost:5000/api/health
 }
 ```
 
-验证点:
-- `status` 为 `ok` (MongoDB 已连接) 或 `degraded` (MongoDB 断开)
-- `mongodb` / `minio` 反映实际连接状态
-- `active_streams` 为当前活跃流数量
-- `models_loaded` 列出已加载的模型 (如 `vehicle`, `smoke_flame`, `qwen_vl`)
-- `uptime_sec` 为服务运行秒数
+Validation points:
 
-### 2. 添加 RTSP 流 (POST /api/streams)
+- `status` is `ok` when MongoDB is connected.
+- `status` is `degraded` when core dependencies are unavailable.
+- `mongodb` reflects the actual MongoDB connection state.
+- `minio` reflects the actual MinIO connection state.
+- `active_streams` equals the current number of active streams.
+- `models_loaded` lists the loaded model families, such as `vehicle`, `smoke_flame`, or `qwen_vl`.
+- `uptime_sec` increases while the backend process remains active.
+
+---
+
+## 6. Stream Management Tests
+
+### 6.1 Add an RTSP Stream
+
+Request:
 
 ```bash
 curl -X POST http://localhost:5000/api/streams \
@@ -86,51 +135,84 @@ curl -X POST http://localhost:5000/api/streams \
   }'
 ```
 
-期望: `200`, 返回流信息含 `stream_id`
+Expected result:
 
-### 3. 查看活跃流 (GET /api/streams)
+- HTTP `200`.
+- Response contains stream metadata and a `stream_id`.
+- The stream begins processing if the RTSP source is reachable.
+
+### 6.2 List Active Streams
+
+Request:
 
 ```bash
 curl http://localhost:5000/api/streams
 ```
 
-期望: 返回数组，包含上一步添加的流，含 `camera_id`, `tasks`, `lat_lng`, `location`, `area_code`, `group` 字段
+Expected result:
 
-### 4. 更新流检测任务 (PUT /api/streams/{id}/tasks)
+- Response is an array.
+- The stream added in the previous step is present.
+- The response includes `camera_id`, `tasks`, `lat_lng`, `location`, `area_code`, and `group`.
+
+### 6.3 Update Stream Tasks
+
+Request:
 
 ```bash
-STREAM_ID="<上一步返回的 stream_id>"
+STREAM_ID="<stream_id returned by POST /api/streams>"
+
 curl -X PUT http://localhost:5000/api/streams/$STREAM_ID/tasks \
   -H "Content-Type: application/json" \
   -d '{"tasks": ["smoke_flame", "parking_violation"]}'
 ```
 
-期望: `200`, 流的 tasks 更新为两个检测任务
+Expected result:
 
-### 5. 获取流运行指标 (GET /api/streams/{id}/metrics)
+- HTTP `200`.
+- The stream task list is updated to include both tasks.
+
+### 6.4 Retrieve Stream Metrics
+
+Request:
 
 ```bash
 curl http://localhost:5000/api/streams/$STREAM_ID/metrics
 ```
 
-期望: 返回帧率、处理延迟等运行指标
+Expected result:
 
-### 6. 移除流 (DELETE /api/streams/{id})
+- Response includes runtime metrics such as frame rates, processing latency, event counters, queue state, and task-specific metrics when available.
+
+### 6.5 Remove a Stream
+
+Request:
 
 ```bash
 curl -X DELETE http://localhost:5000/api/streams/$STREAM_ID
 ```
 
-期望: `200`, 流被移除，后续 GET /api/streams 不再包含该流
+Expected result:
+
+- HTTP `200`.
+- The stream is removed.
+- Subsequent `GET /api/streams` responses no longer include the removed stream.
 
 ---
 
-### 7. 创建模拟事件 (POST /api/events/mock)
+## 7. Mock Event Tests
 
-需要环境变量 `DEMO_MODE=true`。
+Mock event creation requires:
 
 ```bash
-# 指定事件类型
+DEMO_MODE=true
+```
+
+### 7.1 Create a Mock Event
+
+Request:
+
+```bash
 curl -X POST http://localhost:5000/api/events/mock \
   -H "Content-Type: application/json" \
   -d '{
@@ -142,46 +224,73 @@ curl -X POST http://localhost:5000/api/events/mock \
   }'
 ```
 
-期望: `201`
+Expected response:
+
 ```json
-{"message": "Mock event created", "event_type": "smoke_flame", "camera_id": "demo_camera_01"}
+{
+  "message": "Mock event created",
+  "event_type": "smoke_flame",
+  "camera_id": "demo_camera_01"
+}
 ```
 
-支持的 event_type: `smoke_flame`, `parking_violation`, `common_space_utilization`
+Expected status:
 
-DEMO_MODE 未启用时:
+```text
+201
+```
+
+Supported event types:
+
+- `smoke_flame`
+- `parking_violation`
+- `common_space_utilization`
+
+### 7.2 Mock Event When Demo Mode Is Disabled
+
+Request:
+
 ```bash
-# 不设置 DEMO_MODE 环境变量
 curl -X POST http://localhost:5000/api/events/mock \
   -H "Content-Type: application/json" \
   -d '{"event_type": "smoke_flame"}'
 ```
 
-期望: `403 {"error": "DEMO_MODE is not enabled"}`
+Expected response:
 
-### 8. 查询事件列表 (GET /api/events)
+```json
+{
+  "error": "DEMO_MODE is not enabled"
+}
+```
+
+Expected status:
+
+```text
+403
+```
+
+---
+
+## 8. Event Query Tests
+
+### 8.1 Query Events
+
+Request examples:
 
 ```bash
-# 查询所有事件 (默认 limit=50)
 curl "http://localhost:5000/api/events"
-
-# 按类型过滤
 curl "http://localhost:5000/api/events?event_type=smoke_flame&limit=5"
-
-# 按摄像头过滤
 curl "http://localhost:5000/api/events?camera_id=demo_camera_01"
-
-# 按时间范围过滤 (Unix 时间戳)
 curl "http://localhost:5000/api/events?start_time=1714000000&end_time=1714100000"
-
-# 分页
 curl "http://localhost:5000/api/events?limit=10&skip=20"
 ```
 
-期望: 返回分页结构
+Expected response shape:
+
 ```json
 {
-  "items": [...],
+  "items": [],
   "pagination": {
     "limit": 50,
     "skip": 0,
@@ -199,94 +308,146 @@ curl "http://localhost:5000/api/events?limit=10&skip=20"
 }
 ```
 
-### 9. 增量同步 (GET /api/events?since_id=...)
+Validation points:
+
+- `items` contains event documents.
+- Pagination fields reflect the request parameters.
+- Filters in the response match the submitted query.
+
+### 8.2 Incremental Synchronization
+
+Request sequence:
 
 ```bash
-# 获取第一批事件
 RESPONSE=$(curl -s "http://localhost:5000/api/events?limit=5")
-# 取最后一条的 _id
 LAST_ID=$(echo $RESPONSE | python -c "import sys,json; items=json.load(sys.stdin)['items']; print(items[-1]['_id'] if items else '')")
-
-# 增量获取后续事件
 curl "http://localhost:5000/api/events?since_id=$LAST_ID&limit=10"
 ```
 
-期望:
-- 返回 `_id > since_id` 的事件
-- 按 `_id` 升序排列 (时间顺序)
-- 可与 `camera_id`, `event_type` 等过滤器组合使用
+Expected result:
 
-无效 since_id 测试:
+- Response contains events with `_id > since_id`.
+- Results are ordered for incremental consumption.
+- `since_id` can be combined with filters such as `camera_id` and `event_type`.
+
+Invalid `since_id` request:
+
 ```bash
 curl "http://localhost:5000/api/events?since_id=invalid_id"
 ```
 
-期望: `400 {"error": "invalid since_id"}`
+Expected response:
 
-### 10. 获取事件详情 (GET /api/events/{id})
+```json
+{
+  "error": "invalid since_id"
+}
+```
+
+Expected status:
+
+```text
+400
+```
+
+### 8.3 Retrieve Event Detail
+
+Request:
 
 ```bash
-EVENT_ID="<事件的 _id>"
+EVENT_ID="<event _id>"
 curl http://localhost:5000/api/events/$EVENT_ID
 ```
 
-期望: `200`, 返回完整事件文档
+Expected result:
 
-无效 ID 测试:
+- HTTP `200`.
+- Response contains the complete event document.
+
+Invalid ID request:
+
 ```bash
 curl http://localhost:5000/api/events/invalid_id
 ```
 
-期望: `400 {"error": "invalid event_id"}`
+Expected response:
 
-不存在的 ID 测试:
+```json
+{
+  "error": "invalid event_id"
+}
+```
+
+Expected status:
+
+```text
+400
+```
+
+Nonexistent ID request:
+
 ```bash
 curl http://localhost:5000/api/events/000000000000000000000000
 ```
 
-期望: `404 {"error": "event not found"}`
+Expected response:
 
-### 11. 获取最新事件 — 流模式 (GET /api/events/latest)
+```json
+{
+  "error": "event not found"
+}
+```
+
+Expected status:
+
+```text
+404
+```
+
+### 8.4 Retrieve Latest Events
+
+Request examples:
 
 ```bash
-# 获取最新事件
 curl "http://localhost:5000/api/events/latest?limit=10"
-
-# 基于时间戳增量获取
 curl "http://localhost:5000/api/events/latest?since=1714000000.0&limit=50"
-
-# 按类型过滤
 curl "http://localhost:5000/api/events/latest?event_type=smoke_flame&since=1714000000.0"
 ```
 
-期望:
+Expected response shape:
+
 ```json
 {
-  "items": [...],
+  "items": [],
   "since": 1714000000.0,
   "next_since": 1714050000.0,
   "returned": 10
 }
 ```
 
-`next_since` 可用于下次轮询的 `since` 参数。
+Validation point:
 
-### 12. 更新事件状态 (PATCH /api/events/{id}/status)
+- `next_since` can be used as the `since` value for the next polling request.
+
+---
+
+## 9. Event Status Tests
+
+### 9.1 Update Status
+
+Request examples:
 
 ```bash
-EVENT_ID="<事件的 _id>"
+EVENT_ID="<event _id>"
 
-# 标记为已派遣
 curl -X PATCH http://localhost:5000/api/events/$EVENT_ID/status \
   -H "Content-Type: application/json" \
   -d '{"status": "dispatched"}'
 
-# 标记为处理中
 curl -X PATCH http://localhost:5000/api/events/$EVENT_ID/status \
   -H "Content-Type: application/json" \
   -d '{"status": "processing"}'
 
-# 标记为已解决 (含处置信息)
 curl -X PATCH http://localhost:5000/api/events/$EVENT_ID/status \
   -H "Content-Type: application/json" \
   -d '{
@@ -297,56 +458,125 @@ curl -X PATCH http://localhost:5000/api/events/$EVENT_ID/status \
   }'
 ```
 
-期望: `200`, 返回更新后的事件文档，包含 `status`, `handled_at`, `handled_by`, `handle_note`, `handle_image_url` 字段
+Expected result:
 
-合法状态值: `pending`, `dispatched`, `processing`, `resolved`, `rejected`
+- HTTP `200`.
+- Response contains the updated event document.
+- Response includes `status`.
+- For handled events, response includes `handled_at`, `handled_by`, `handle_note`, and `handle_image_url` when provided.
 
-非法状态测试:
+Valid status values:
+
+- `pending`
+- `dispatched`
+- `processing`
+- `resolved`
+- `rejected`
+
+### 9.2 Invalid Status
+
+Request:
+
 ```bash
 curl -X PATCH http://localhost:5000/api/events/$EVENT_ID/status \
   -H "Content-Type: application/json" \
   -d '{"status": "invalid_status"}'
 ```
 
-期望: `400 {"error": "status must be one of: dispatched, pending, processing, rejected, resolved"}`
+Expected response:
 
-缺少 status 字段:
+```json
+{
+  "error": "status must be one of: dispatched, pending, processing, rejected, resolved"
+}
+```
+
+Expected status:
+
+```text
+400
+```
+
+### 9.3 Missing Status
+
+Request:
+
 ```bash
 curl -X PATCH http://localhost:5000/api/events/$EVENT_ID/status \
   -H "Content-Type: application/json" \
   -d '{"handled_by": "someone"}'
 ```
 
-期望: `400 {"error": "status is required"}`
+Expected response:
 
-不存在的事件:
+```json
+{
+  "error": "status is required"
+}
+```
+
+Expected status:
+
+```text
+400
+```
+
+### 9.4 Nonexistent Event
+
+Request:
+
 ```bash
 curl -X PATCH http://localhost:5000/api/events/000000000000000000000000/status \
   -H "Content-Type: application/json" \
   -d '{"status": "resolved"}'
 ```
 
-期望: `404 {"error": "event not found"}`
+Expected response:
 
-### 13. 聚合统计 (GET /api/events/stats)
+```json
+{
+  "error": "event not found"
+}
+```
+
+Expected status:
+
+```text
+404
+```
+
+---
+
+## 10. Event Statistics Test
+
+Request:
 
 ```bash
 curl http://localhost:5000/api/events/stats
 ```
 
-期望: 返回按事件类型、摄像头等维度的聚合统计数据
+Expected result:
+
+- Response contains aggregate statistics grouped by event type, camera, or other supported dimensions.
+- Counts match the events currently stored in MongoDB.
 
 ---
 
-### 14. 注册 Webhook (POST /api/webhooks)
+## 11. Webhook Registration Tests
+
+### 11.1 Register a Webhook
+
+Register a webhook for all event types:
 
 ```bash
-# 注册接收所有事件类型
 curl -X POST http://localhost:5000/api/webhooks \
   -H "Content-Type: application/json" \
   -d '{"url": "http://localhost:8090/api/v1/hvas/webhook"}'
+```
 
-# 注册仅接收特定事件类型
+Register a webhook for selected event types:
+
+```bash
 curl -X POST http://localhost:5000/api/webhooks \
   -H "Content-Type: application/json" \
   -d '{
@@ -355,56 +585,114 @@ curl -X POST http://localhost:5000/api/webhooks \
   }'
 ```
 
-期望: `201`
+Expected response:
+
 ```json
-{"id": "<webhook_id>", "url": "http://...", "event_types": [...]}
+{
+  "id": "<webhook_id>",
+  "url": "http://example.com/hook",
+  "event_types": ["smoke_flame", "parking_violation"]
+}
 ```
 
-缺少 URL:
+Expected status:
+
+```text
+201
+```
+
+### 11.2 Missing URL
+
+Request:
+
 ```bash
 curl -X POST http://localhost:5000/api/webhooks \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
 
-期望: `400 {"error": "url is required"}`
+Expected response:
 
-### 15. 查看已注册 Webhook (GET /api/webhooks)
+```json
+{
+  "error": "url is required"
+}
+```
+
+Expected status:
+
+```text
+400
+```
+
+### 11.3 List Webhooks
+
+Request:
 
 ```bash
 curl http://localhost:5000/api/webhooks
 ```
 
-期望: 返回所有已注册 webhook 的数组
+Expected result:
 
-### 16. 删除 Webhook (DELETE /api/webhooks/{id})
+- Response contains all registered webhook endpoints.
+
+### 11.4 Delete a Webhook
+
+Request:
 
 ```bash
 WEBHOOK_ID="<webhook_id>"
 curl -X DELETE http://localhost:5000/api/webhooks/$WEBHOOK_ID
 ```
 
-期望: `200 {"deleted": true}`
+Expected response:
 
-不存在的 ID:
+```json
+{
+  "deleted": true
+}
+```
+
+Expected status:
+
+```text
+200
+```
+
+Nonexistent webhook request:
+
 ```bash
 curl -X DELETE http://localhost:5000/api/webhooks/000000000000000000000000
 ```
 
-期望: `404 {"error": "not found"}`
+Expected response:
+
+```json
+{
+  "error": "not found"
+}
+```
+
+Expected status:
+
+```text
+404
+```
 
 ---
 
-## Webhook 签名验证测试
+## 12. Webhook Signature Verification
 
-当 `WEBHOOK_SECRET` 环境变量已设置时，HVAS 推送 Webhook 会在 `X-HVAS-Signature` 请求头中附带 HMAC-SHA256 签名。
+When `WEBHOOK_SECRET` is configured, HVAS signs webhook payloads with HMAC-SHA256 and sends the result in the `X-HVAS-Signature` header.
 
-### Python 验证脚本
+### 12.1 Verification Script
 
 ```python
-import hmac
 import hashlib
+import hmac
 import json
+
 import requests
 
 secret = "hvas-mubs-shared-secret"
@@ -415,31 +703,41 @@ payload = {
     "timestamp": 1714000000.0,
     "created_at": "2026-04-25T10:00:00Z",
     "confidence": 0.85,
-    "description": "Test event"
+    "description": "Test event",
 }
 
 body = json.dumps(payload).encode("utf-8")
 signature = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
 
-# 发送到 MUBS 验证签名
-resp = requests.post(
+response = requests.post(
     "http://localhost:8090/api/v1/hvas/webhook",
     data=body,
     headers={
         "Content-Type": "application/json",
-        "X-HVAS-Signature": signature
-    }
+        "X-HVAS-Signature": signature,
+    },
 )
-print(resp.status_code, resp.json())
+
+print(response.status_code, response.json())
 ```
 
-期望: `201 {"status": "created", "ticket_id": "...", "assigned_team": "fire_team"}`
+Expected MUBS response:
 
----
+```json
+{
+  "status": "created",
+  "ticket_id": "...",
+  "assigned_team": "fire_team"
+}
+```
 
-## Webhook 推送 Payload 格式
+Expected status:
 
-HVAS 检测到事件后自动向注册的 URL 推送:
+```text
+201
+```
+
+### 12.2 Webhook Payload Format
 
 ```json
 {
@@ -459,79 +757,137 @@ HVAS 检测到事件后自动向注册的 URL 推送:
 }
 ```
 
-特性:
-- 签名: `X-HVAS-Signature` 请求头 (HMAC-SHA256 hex, 需设置 `WEBHOOK_SECRET`)
-- 异步推送: ThreadPoolExecutor 4 线程
-- 超时: 5 秒/请求
-- 重试: 最多 2 次
-- 事件类型过滤: 按 webhook 注册时的 `event_types` 过滤
+Webhook delivery characteristics:
+
+- Signature header: `X-HVAS-Signature`.
+- Signature algorithm: HMAC-SHA256 hexadecimal digest.
+- Dispatch model: asynchronous thread pool.
+- Request timeout: five seconds.
+- Retry policy: up to two retries.
+- Event filtering: based on `event_types` configured during webhook registration.
 
 ---
 
-## 演示数据生成
+## 13. Demo Data Generation
+
+Generate historical demo events:
 
 ```bash
-# 使用种子脚本生成 80 条历史事件 (需 MongoDB + MinIO 运行)
-cd D:\hybrid_video_analysis_system_v2
 python scripts/seed_demo_data.py
 ```
 
-脚本功能:
-- 插入 80 条历史事件到 MongoDB，时间跨度 7 天
-- 覆盖 3 种事件类型 (smoke_flame ~30%, parking_violation ~35%, common_space_utilization ~35%)
-- 5 个预设摄像头 (east_gate_01, west_gate_02, north_plaza_03, south_lobby_04, warehouse_05)
-- 每条事件上传 16x16 占位图片到 MinIO
-- 包含完整的 location 元数据 (lat_lng, location, area_code, group)
+Script responsibilities:
 
-环境变量 (均有默认值):
-- `MONGO_URI` — 默认 `mongodb://localhost:27017`
-- `MONGO_DB` — 默认 `hvas`
-- `MINIO_ENDPOINT` — 默认 `localhost:9000`
-- `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` — 默认 `minioadmin`
-- `MINIO_BUCKET` — 默认 `video-events`
+- Insert 80 historical events into MongoDB.
+- Distribute timestamps across the past seven days.
+- Cover `smoke_flame`, `parking_violation`, and `common_space_utilization`.
+- Use predefined cameras such as `east_gate_01`, `west_gate_02`, `north_plaza_03`, `south_lobby_04`, and `warehouse_05`.
+- Upload placeholder evidence images to MinIO.
+- Include location metadata such as `lat_lng`, `location`, `area_code`, and `group`.
+
+Default environment variables:
+
+| Variable | Default |
+|---|---|
+| `MONGO_URI` | `mongodb://localhost:27017` |
+| `MONGO_DB` | `hvas` |
+| `MINIO_ENDPOINT` | `localhost:9000` |
+| `MINIO_ACCESS_KEY` | `minioadmin` |
+| `MINIO_SECRET_KEY` | `minioadmin` |
+| `MINIO_BUCKET` | `video-events` |
 
 ---
 
-## 端到端集成测试 (HVAS → MUBS)
+## 14. End-to-End HVAS-to-MUBS Test
 
-### 前置条件
-- HVAS 后端运行在 `localhost:5000` (DEMO_MODE=true, WEBHOOK_SECRET=hvas-mubs-shared-secret)
-- MUBS 后端运行在 `localhost:8090` (HVAS_WEBHOOK_SECRET=hvas-mubs-shared-secret)
-- MongoDB: HVAS 用 27017, MUBS 用 27018
+### 14.1 Prerequisites
 
-### 步骤
+- HVAS backend is running at `http://localhost:5000`.
+- HVAS uses `DEMO_MODE=true`.
+- HVAS uses `WEBHOOK_SECRET=hvas-mubs-shared-secret`.
+- MUBS backend is running at `http://localhost:8090`.
+- MUBS uses `HVAS_WEBHOOK_SECRET=hvas-mubs-shared-secret`.
+- HVAS MongoDB uses port `27017`.
+- MUBS storage uses its configured database port.
+
+### 14.2 Test Steps
+
+Register the MUBS webhook in HVAS:
 
 ```bash
-# 1. 在 HVAS 注册 MUBS Webhook
 curl -X POST http://localhost:5000/api/webhooks \
   -H "Content-Type: application/json" \
   -d '{"url": "http://localhost:8090/api/v1/hvas/webhook"}'
+```
 
-# 2. 在 HVAS 创建模拟事件
+Create a mock event in HVAS:
+
+```bash
 curl -X POST http://localhost:5000/api/events/mock \
   -H "Content-Type: application/json" \
-  -d '{"event_type": "smoke_flame", "camera_id": "demo_cam", "area_code": "east_district", "group": "fire_team"}'
+  -d '{
+    "event_type": "smoke_flame",
+    "camera_id": "demo_cam",
+    "area_code": "east_district",
+    "group": "fire_team"
+  }'
+```
 
-# 3. 在 MUBS 检查工单是否自动创建
+Authenticate with MUBS:
+
+```bash
 TOKEN=$(curl -s -X POST http://localhost:8090/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' | python -c "import sys,json; print(json.load(sys.stdin)['token'])")
+  -d '{"username":"admin","password":"admin123"}' \
+  | python -c "import sys,json; print(json.load(sys.stdin)['token'])")
+```
 
+Check whether a MUBS ticket was created:
+
+```bash
 curl http://localhost:8090/api/tickets?size=1 \
   -H "Authorization: Bearer $TOKEN"
+```
 
-# 4. 在 MUBS 更新工单状态为 RESOLVED
-TICKET_ID="<工单 ID>"
+Update the MUBS ticket status:
+
+```bash
+TICKET_ID="<ticket id>"
+
 curl -X PATCH http://localhost:8090/api/tickets/$TICKET_ID/status \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"status": "RESOLVED", "note": "已处理"}'
+  -d '{"status": "RESOLVED", "note": "Handled"}'
+```
 
-# 5. 在 HVAS 检查事件状态是否被回传更新
-EVENT_ID="<HVAS 事件 ID>"
+Verify the HVAS event state:
+
+```bash
+EVENT_ID="<HVAS event id>"
 curl http://localhost:5000/api/events/$EVENT_ID
 ```
 
-期望:
-- 步骤 3: MUBS 工单列表出现新工单, 状态 `DISPATCHED`, 团队 `fire_team`
-- 步骤 5: HVAS 事件 `status` 变为 `resolved`, 含 `handled_at` 时间戳
+### 14.3 Expected Results
+
+- MUBS receives the HVAS webhook.
+- MUBS creates one ticket for the event.
+- Duplicate webhook deliveries do not create duplicate tickets.
+- The ticket is dispatched to `fire_team` when the dispatch rule matches.
+- The ticket status can be updated to `RESOLVED`.
+- HVAS event status reflects the handling feedback when feedback integration is enabled.
+
+---
+
+## 15. Test Completion Checklist
+
+- [ ] Infrastructure starts successfully.
+- [ ] Backend health check returns expected dependency states.
+- [ ] Stream creation, listing, task update, metrics, and deletion work.
+- [ ] Mock event creation works when demo mode is enabled.
+- [ ] Event query filters and pagination work.
+- [ ] Incremental synchronization works with `since_id`.
+- [ ] Event status update validates allowed values.
+- [ ] Webhook registration and deletion work.
+- [ ] Webhook signature verification succeeds with the configured secret.
+- [ ] Demo data script creates events and evidence.
+- [ ] HVAS-to-MUBS end-to-end flow creates tickets without duplicates.
