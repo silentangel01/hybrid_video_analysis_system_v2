@@ -38,10 +38,14 @@ def health_check():
     minio_status = "disconnected"
     if _minio_client is not None:
         try:
-            client = getattr(_minio_client, "client", None)
-            if client is not None:
-                client.list_buckets()
-                minio_status = "connected"
+            if hasattr(_minio_client, "health_check"):
+                if _minio_client.health_check():
+                    minio_status = "connected"
+            else:
+                client = getattr(_minio_client, "client", None)
+                if client is not None:
+                    client.list_buckets()
+                    minio_status = "connected"
         except Exception:
             pass
 

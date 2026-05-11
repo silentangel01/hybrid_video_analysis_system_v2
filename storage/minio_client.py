@@ -15,6 +15,8 @@ from minio import Minio
 from minio.error import S3Error
 import logging
 import os
+import threading
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -52,11 +54,15 @@ class MinIOClient:
         self.bucket_name = bucket_name.lower()  # Bucket names must be lowercase
         self.secure = secure
         self.client: Optional[Minio] = None
+        self._connect_lock = threading.Lock()
+        self._last_connect_attempt = 0.0
+        self._reconnect_interval_sec = 5.0
         self._connect()
 
-    def _connect(self):
+    def _connect(self) -> bool:
         """Establish connection to MinIO server and ensure bucket exists."""
         try:
+            self._last_connect_attempt = time.time()
             self.client = Minio(
                 self.endpoint,
                 access_key=self.access_key,
@@ -74,6 +80,41 @@ class MinIOClient:
         except Exception as e:
             logger.error(f"[MinIO] Failed to connect or initialize: {str(e)}")
             self.client = None
+            return False
+
+        return True
+
+    def _ensure_connected(self, force: bool = False) -> bool:
+        """Reconnect lazily when startup happened before MinIO was available."""
+        if self.client is not None:
+            return True
+
+        now = time.time()
+        if not force and now - self._last_connect_attempt < self._reconnect_interval_sec:
+            return False
+
+        with self._connect_lock:
+            if self.client is not None:
+                return True
+
+            now = time.time()
+            if not force and now - self._last_connect_attempt < self._reconnect_interval_sec:
+                return False
+
+            logger.info("[MinIO] Attempting to reconnect to %s/%s", self.endpoint, self.bucket_name)
+            return self._connect()
+
+    def health_check(self) -> bool:
+        """Return True when MinIO is reachable and the target bucket is ready."""
+        if not self._ensure_connected():
+            return False
+
+        try:
+            return bool(self.client.bucket_exists(self.bucket_name))
+        except Exception as e:
+            logger.error(f"[MinIO] Health check failed: {str(e)}")
+            self.client = None
+            return False
 
     def upload_frame(
             self,
@@ -93,8 +134,12 @@ class MinIOClient:
         Returns:
             Public URL for accessing the image, or None on failure.
         """
-        if self.client is None:
-            logger.error("[MinIO] Client not connected.")
+        if not self._ensure_connected():
+            logger.error(
+                "[MinIO] Client not connected. Check endpoint=%s bucket=%s",
+                self.endpoint,
+                self.bucket_name,
+            )
             return None
 
         try:
@@ -145,9 +190,11 @@ class MinIOClient:
             return public_url
 
         except S3Error as e:
+            self.client = None
             logger.error(f"❌ [MinIO] S3 Error during upload: {e}")
             return None
         except Exception as e:
+            self.client = None
             logger.error(f"❌ [MinIO] Unexpected error during upload: {str(e)}", exc_info=True)
             return None
 
@@ -162,6 +209,14 @@ class MinIOClient:
         替代方法：直接使用 datetime 对象而不是时间戳
         Alternative method: use datetime object directly instead of timestamp.
         """
+        if not self._ensure_connected():
+            logger.error(
+                "[MinIO] Client not connected. Check endpoint=%s bucket=%s",
+                self.endpoint,
+                self.bucket_name,
+            )
+            return None
+
         try:
             # Convert numpy array to JPEG bytes if needed
             if hasattr(image_data, 'shape'):
@@ -194,6 +249,7 @@ class MinIOClient:
             return public_url
 
         except Exception as e:
+            self.client = None
             logger.error(f"❌ [MinIO] Error in upload_frame_with_datetime: {str(e)}")
             return None
 
@@ -212,6 +268,9 @@ class MinIOClient:
         """
         List objects in bucket with optional prefix filter.
         """
+        if not self._ensure_connected():
+            return []
+
         try:
             objects = self.client.list_objects(self.bucket_name, prefix=prefix, recursive=True)
             return [obj.object_name for obj in objects]
@@ -223,6 +282,9 @@ class MinIOClient:
         """
         Check if an object exists in the bucket.
         """
+        if not self._ensure_connected():
+            return False
+
         try:
             self.client.stat_object(self.bucket_name, object_name)
             return True

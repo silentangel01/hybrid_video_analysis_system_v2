@@ -241,7 +241,7 @@ async function generateReport(mode = 'rule') {
         url: selectedStream.value.url,
         start_time: startTime,
         end_time: endTime,
-        language: 'zh-CN',
+        language: 'en-US',
       }),
     })
     const data = await res.json()

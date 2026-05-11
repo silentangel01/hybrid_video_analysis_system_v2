@@ -42,6 +42,9 @@ class ViolationDetectionService:
         # Per-source DwellTracker instances (created lazily)
         self._dwell_trackers: Dict[str, DwellTracker] = {}
         self._dwell_lock = threading.Lock()
+        self._event_frame_lock = threading.Lock()
+        self._recent_event_frame_keys: Dict[tuple, float] = {}
+        self._event_frame_dedupe_ttl_sec = 300.0
         # Ultralytics YOLO is not thread-safe for concurrent predict calls on
         # the same model instance; serialise inference when RTSP frames overlap.
         self._inference_lock = threading.Lock()
@@ -114,6 +117,51 @@ class ViolationDetectionService:
                 self._dwell_trackers[source_id] = tracker
             return tracker
 
+    def _update_dwell_tracker(self, source_id: str, in_zone: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Update one source's dwell tracker under lock.
+
+        The parking handler can run frames concurrently. DwellTracker mutates
+        per-track state, so serialising this step avoids duplicate triggers from
+        overlapping handler calls.
+        """
+        with self._dwell_lock:
+            tracker = self._dwell_trackers.get(source_id)
+            if tracker is None:
+                tracker = DwellTracker(dwell_threshold=self._dwell_threshold)
+                self._dwell_trackers[source_id] = tracker
+            return tracker.update(in_zone)
+
+    def _frame_event_key(self, source_id: str, frame_index: int, event_type: str):
+        try:
+            frame_key = int(frame_index)
+        except (TypeError, ValueError):
+            frame_key = frame_index
+        return source_id, event_type, frame_key
+
+    def _reserve_frame_event_once(self, source_id: str, frame_index: int, event_type: str) -> bool:
+        now = time.time()
+        key = self._frame_event_key(source_id, frame_index, event_type)
+
+        with self._event_frame_lock:
+            expired = [
+                old_key
+                for old_key, created_at in self._recent_event_frame_keys.items()
+                if now - created_at > self._event_frame_dedupe_ttl_sec
+            ]
+            for old_key in expired:
+                self._recent_event_frame_keys.pop(old_key, None)
+
+            if key in self._recent_event_frame_keys:
+                return False
+
+            self._recent_event_frame_keys[key] = now
+            return True
+
+    def _release_frame_event_reservation(self, source_id: str, frame_index: int, event_type: str):
+        key = self._frame_event_key(source_id, frame_index, event_type)
+        with self._event_frame_lock:
+            self._recent_event_frame_keys.pop(key, None)
+
     # -------------------- Main entry --------------------
 
     def process_frame(self, frame_meta: FrameWithMetadata) -> None:
@@ -162,8 +210,7 @@ class ViolationDetectionService:
 
         # 3. Dwell-time tracking: only vehicles that stay in the zone for
         #    N consecutive frames are treated as violations (NFR2.1).
-        tracker = self._get_dwell_tracker(source_id)
-        violations = tracker.update(in_zone)
+        violations = self._update_dwell_tracker(source_id, in_zone)
 
         with self.metrics_lock:
             self.last_violation_count = len(violations)
@@ -172,6 +219,15 @@ class ViolationDetectionService:
 
         # If no dwell-triggered violations this frame, skip upload/persist.
         if not violations:
+            self.pipeline_latency.record(time.perf_counter() - pipeline_started)
+            return
+
+        if not self._reserve_frame_event_once(source_id, frame_meta.frame_index, "parking_violation"):
+            logger.debug(
+                "Skipping duplicate parking event for source=%s frame_index=%s",
+                source_id,
+                frame_meta.frame_index,
+            )
             self.pipeline_latency.record(time.perf_counter() - pipeline_started)
             return
 
@@ -192,6 +248,7 @@ class ViolationDetectionService:
         self.upload_latency.record(time.perf_counter() - upload_started)
 
         if not image_url:
+            self._release_frame_event_reservation(source_id, frame_meta.frame_index, "parking_violation")
             self.pipeline_latency.record(time.perf_counter() - pipeline_started)
             logger.error("Upload failed for %s", source_id)
             return
@@ -223,6 +280,7 @@ class ViolationDetectionService:
             logger.info("Frame event saved: %d dwell violations / %d detections for %s",
                         len(violations), len(detections), source_id)
         else:
+            self._release_frame_event_reservation(source_id, frame_meta.frame_index, "parking_violation")
             logger.error("Failed to save frame events for %s", source_id)
 
         self.pipeline_latency.record(time.perf_counter() - pipeline_started)

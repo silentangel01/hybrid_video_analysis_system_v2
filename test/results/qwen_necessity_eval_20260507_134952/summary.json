@@ -1,0 +1,26 @@
+{
+  "frames_total": 8,
+  "yolo_only_frames_with_false_positive": 8,
+  "yolo_only_false_positive_detections_total": 14,
+  "yolo_only_false_positive_frame_rate": 1.0,
+  "yolo_only_false_positives_per_1000_frames": 1750.0,
+  "yolo_qwen_frames_with_false_positive": 1,
+  "yolo_qwen_false_positive_detections_total": 1,
+  "yolo_qwen_false_positive_frame_rate": 0.125,
+  "yolo_qwen_false_positives_per_1000_frames": 125.0,
+  "detection_reduction": {
+    "absolute_reduction": 13,
+    "relative_reduction_rate": 0.928571
+  },
+  "frame_rate_reduction": {
+    "absolute_reduction": 7,
+    "relative_reduction_rate": 0.875
+  },
+  "yolo_latency_avg_ms": 70.756,
+  "yolo_latency_p95_ms": 316.202,
+  "qwen_request_latency_avg_ms": 1074.139,
+  "qwen_request_latency_p95_ms": 1588.497,
+  "qwen_requests_total": 14,
+  "qwen_errors_total": 0,
+  "elapsed_sec": 11.069
+}

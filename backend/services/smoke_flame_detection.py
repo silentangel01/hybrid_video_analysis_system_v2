@@ -41,7 +41,12 @@ class SmokeFlameDetectionService:
 
     EVENT_COOLDOWN_SEC = 30.0  # min seconds between saved events per source
 
-    def __init__(self):
+    def __init__(
+        self,
+        backpressure_enabled: bool = False,
+        max_detection_queue_size: int = 8,
+        max_verification_queue_size: int = 12,
+    ):
         self.minio_client: Optional[MinIOClient] = None
         self.mongo_client: Optional[MongoDBClient] = None
         self.model_loader: Optional[YOLOModelLoader] = None
@@ -50,6 +55,9 @@ class SmokeFlameDetectionService:
 
         self.detection_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="smoke-detect")
         self.verification_pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="smoke-verify")
+        self.backpressure_enabled = bool(backpressure_enabled)
+        self.max_detection_queue_size = max(1, int(max_detection_queue_size))
+        self.max_verification_queue_size = max(1, int(max_verification_queue_size))
 
         self.frame_skip = 3  # process 1 frame every 4 (reduce load on verification queue)
         self.last_processed_frame: Dict[str, int] = {}
@@ -73,10 +81,12 @@ class SmokeFlameDetectionService:
         self.frames_received_total = 0
         self.frames_skipped_total = 0
         self.frames_submitted_total = 0
+        self.frames_dropped_backpressure_total = 0
         self.frames_with_candidates_total = 0
         self.frames_verified_total = 0
         self.events_saved_total = 0
         self.qwen_requests_total = 0
+        self.verification_backpressure_fallback_total = 0
         self.last_candidate_count = 0
         self.last_verified_count = 0
 
@@ -96,17 +106,34 @@ class SmokeFlameDetectionService:
     def set_frame_skip(self, skip_frames: int):
         self.frame_skip = skip_frames
 
+    def configure_backpressure(
+        self,
+        enabled: bool,
+        max_detection_queue_size: Optional[int] = None,
+        max_verification_queue_size: Optional[int] = None,
+    ):
+        self.backpressure_enabled = bool(enabled)
+        if max_detection_queue_size is not None:
+            self.max_detection_queue_size = max(1, int(max_detection_queue_size))
+        if max_verification_queue_size is not None:
+            self.max_verification_queue_size = max(1, int(max_verification_queue_size))
+
     def get_runtime_metrics(self) -> Dict[str, Any]:
         with self.metrics_lock:
             return {
                 "frame_skip": self.frame_skip,
+                "backpressure_enabled": self.backpressure_enabled,
+                "max_detection_queue_size": self.max_detection_queue_size,
+                "max_verification_queue_size": self.max_verification_queue_size,
                 "frames_received_total": self.frames_received_total,
                 "frames_skipped_total": self.frames_skipped_total,
                 "frames_submitted_total": self.frames_submitted_total,
+                "frames_dropped_backpressure_total": self.frames_dropped_backpressure_total,
                 "frames_with_candidates_total": self.frames_with_candidates_total,
                 "frames_verified_total": self.frames_verified_total,
                 "events_saved_total": self.events_saved_total,
                 "qwen_requests_total": self.qwen_requests_total,
+                "verification_backpressure_fallback_total": self.verification_backpressure_fallback_total,
                 "received_fps_10s": self.received_counter.snapshot()["rate_per_sec"],
                 "submitted_fps_10s": self.submitted_counter.snapshot()["rate_per_sec"],
                 "event_fps_10s": self.event_counter.snapshot()["rate_per_sec"],
@@ -141,6 +168,13 @@ class SmokeFlameDetectionService:
             with self.metrics_lock:
                 self.frames_skipped_total += 1
             return
+
+        if self.backpressure_enabled:
+            queue_size = get_thread_pool_queue_size(self.detection_pool)
+            if queue_size >= self.max_detection_queue_size:
+                with self.metrics_lock:
+                    self.frames_dropped_backpressure_total += 1
+                return
 
         self.last_processed_frame[source_id] = frame_index
         current_timestamp = time.time()
@@ -301,9 +335,17 @@ class SmokeFlameDetectionService:
             logger.warning("Qwen-VL client not available, using YOLO results directly")
             return detections
 
-        # Skip verification if queue is already backed up (> 12 pending tasks)
+        # Skip verification if queue is already backed up.
         queue_size = get_thread_pool_queue_size(self.verification_pool)
-        if queue_size > 12:
+        verification_limit = self.max_verification_queue_size if self.backpressure_enabled else 12
+        queue_over_limit = (
+            queue_size >= verification_limit
+            if self.backpressure_enabled
+            else queue_size > verification_limit
+        )
+        if queue_over_limit:
+            with self.metrics_lock:
+                self.verification_backpressure_fallback_total += 1
             logger.debug("Verification queue full (%d), using YOLO results directly", queue_size)
             return detections
 

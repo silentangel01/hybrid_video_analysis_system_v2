@@ -37,6 +37,17 @@ class AppResources:
     smoke_service_ready: bool
     common_space_service_ready: bool
     common_space_interval_sec: float
+    task_sample_intervals_sec: Dict[str, float] = field(default_factory=lambda: {
+        "parking_violation": 0.5,
+        "smoke_flame": 0.2,
+        "common_space": 30.0,
+    })
+    backpressure_protection_enabled: bool = False
+    rtsp_sample_interval_sec: float = 0.5
+    stream_executor_max_queue: int = 24
+    smoke_detection_max_queue: int = 8
+    smoke_verification_max_queue: int = 12
+    common_space_max_queue: int = 4
     dwell_threshold: int = 5
     weights_dir: Optional[str] = None
 
@@ -44,9 +55,25 @@ class AppResources:
 class StreamExecutor:
     """Per-stream task executor. Keeps RTSP streams from sharing one global pool."""
 
-    def __init__(self, stream_id: str, handlers: Dict[str, Any]):
+    def __init__(
+        self,
+        stream_id: str,
+        handlers: Dict[str, Any],
+        task_sample_intervals_sec: Optional[Dict[str, float]] = None,
+        max_queue_size: int = 24,
+        backpressure_enabled: bool = False,
+    ):
         self.stream_id = stream_id
         self.handlers = handlers
+        self.task_sample_intervals_sec = {
+            task: max(0.0, float((task_sample_intervals_sec or {}).get(task, 0.0)))
+            for task in handlers.keys()
+        }
+        self._last_task_sample_ts: Dict[str, float] = {}
+        self.task_sample_skipped_total = {task: 0 for task in handlers.keys()}
+        self.task_backpressure_dropped_total = {task: 0 for task in handlers.keys()}
+        self.max_queue_size = max(1, int(max_queue_size))
+        self.backpressure_enabled = bool(backpressure_enabled)
         max_workers = max(2, len(handlers) * 2)
         self.executor = ThreadPoolExecutor(
             max_workers=max_workers,
@@ -57,6 +84,8 @@ class StreamExecutor:
         self.completed_total = 0
         self.failed_total = 0
         self.inflight_tasks = 0
+        self.dropped_frames_total = 0
+        self.dropped_tasks_total = 0
         self.dispatch_counter = SlidingCounter(window_sec=10.0)
         self.completion_counter = SlidingCounter(window_sec=10.0)
         self.task_dispatch_counter = {
@@ -69,10 +98,28 @@ class StreamExecutor:
         }
 
     def dispatch(self, frame_meta, tasks: List[str]):
-        for task in tasks:
+        due_tasks = self._due_tasks(frame_meta, tasks)
+        if not due_tasks:
+            return
+
+        due_tasks.sort(key=lambda task: self.task_sample_intervals_sec.get(task, 0.0))
+        dropped_any = False
+
+        for task in due_tasks:
             handler = self.handlers.get(task)
             if handler is None:
                 logger.warning(f"[{self.stream_id}] Missing handler for task: {task}")
+                continue
+            if (
+                self.backpressure_enabled
+                and get_thread_pool_queue_size(self.executor) >= self.max_queue_size
+            ):
+                dropped_any = True
+                with self.metrics_lock:
+                    self.dropped_tasks_total += 1
+                    self.task_backpressure_dropped_total[task] = (
+                        self.task_backpressure_dropped_total.get(task, 0) + 1
+                    )
                 continue
             try:
                 self.executor.submit(self._safe_process, handler, frame_meta, task)
@@ -83,6 +130,46 @@ class StreamExecutor:
                 self.task_dispatch_counter[task].add()
             except Exception as e:
                 logger.error(f"[{self.stream_id}] Failed to submit task {task}: {e}")
+
+        if dropped_any:
+            with self.metrics_lock:
+                self.dropped_frames_total += 1
+
+    def _due_tasks(self, frame_meta, tasks: List[str]) -> List[str]:
+        timestamp = getattr(frame_meta, "timestamp", None)
+        if timestamp is None:
+            timestamp = time.time()
+        timestamp = float(timestamp)
+
+        due_tasks: List[str] = []
+        skipped_tasks: List[str] = []
+
+        for task in tasks:
+            if task not in self.handlers:
+                logger.warning(f"[{self.stream_id}] Missing handler for task: {task}")
+                continue
+
+            interval = self.task_sample_intervals_sec.get(task, 0.0)
+            last_ts = self._last_task_sample_ts.get(task)
+            if (
+                interval <= 0
+                or last_ts is None
+                or timestamp < last_ts
+                or timestamp - last_ts >= interval
+            ):
+                self._last_task_sample_ts[task] = timestamp
+                due_tasks.append(task)
+            else:
+                skipped_tasks.append(task)
+
+        if skipped_tasks:
+            with self.metrics_lock:
+                for task in skipped_tasks:
+                    self.task_sample_skipped_total[task] = (
+                        self.task_sample_skipped_total.get(task, 0) + 1
+                    )
+
+        return due_tasks
 
     def _safe_process(self, handler, frame_meta, task: str):
         started = time.perf_counter()
@@ -111,14 +198,25 @@ class StreamExecutor:
             completed_total = self.completed_total
             failed_total = self.failed_total
             inflight_tasks = self.inflight_tasks
+            dropped_frames_total = self.dropped_frames_total
+            dropped_tasks_total = self.dropped_tasks_total
+            task_sample_skipped_total = dict(self.task_sample_skipped_total)
+            task_backpressure_dropped_total = dict(self.task_backpressure_dropped_total)
 
         return {
             "max_workers": getattr(self.executor, "_max_workers", 0),
+            "backpressure_enabled": self.backpressure_enabled,
+            "max_queue_size": self.max_queue_size,
+            "task_sample_intervals_sec": dict(self.task_sample_intervals_sec),
             "queue_size": get_thread_pool_queue_size(self.executor),
             "submitted_total": submitted_total,
             "completed_total": completed_total,
             "failed_total": failed_total,
             "inflight_tasks": inflight_tasks,
+            "dropped_frames_total": dropped_frames_total,
+            "dropped_tasks_total": dropped_tasks_total,
+            "task_sample_skipped_total": task_sample_skipped_total,
+            "task_backpressure_dropped_total": task_backpressure_dropped_total,
             "dispatch_fps_10s": self.dispatch_counter.snapshot()["rate_per_sec"],
             "completion_fps_10s": self.completion_counter.snapshot()["rate_per_sec"],
             "tasks": {
@@ -142,6 +240,7 @@ class StreamRuntime:
     model_loader: YOLOModelLoader
     handlers: Dict[str, Any]
     executor: StreamExecutor
+    task_sample_intervals_sec: Dict[str, float] = field(default_factory=dict)
     capture: Any = field(default=None, repr=False)
     started_event: Any = field(default_factory=threading.Event, repr=False)
     status: str = "connecting"
@@ -153,6 +252,16 @@ class StreamRuntime:
 
     def dispatch_frame(self, frame_meta):
         self.executor.dispatch(frame_meta, self.tasks)
+
+    def capture_sample_interval_sec(self) -> float:
+        """Fastest interval needed by this stream's configured tasks."""
+        intervals = [
+            max(0.0, float(self.task_sample_intervals_sec.get(task, 0.0)))
+            for task in self.tasks
+        ]
+        if not intervals or any(interval <= 0 for interval in intervals):
+            return 0.0
+        return min(intervals)
 
     def mark_capture_started(self):
         self.started_event.set()
@@ -170,6 +279,7 @@ class StreamRuntime:
             "batch_rate_10s": (capture_detail or {}).get("batch_rate_10s", 0.0),
             "frames_read_total": (capture_detail or {}).get("frames_read_total", 0),
             "frames_emitted_total": (capture_detail or {}).get("frames_emitted_total", 0),
+            "frames_skipped_total": (capture_detail or {}).get("frames_skipped_total", 0),
             "batches_emitted_total": (capture_detail or {}).get("batches_emitted_total", 0),
             "disconnect_count": (capture_detail or {}).get("disconnect_count", 0),
             "open_failures_total": (capture_detail or {}).get("open_failures_total", 0),
@@ -179,6 +289,8 @@ class StreamRuntime:
 
         return {
             "capture": capture_metrics,
+            "task_sample_intervals_sec": dict(self.task_sample_intervals_sec),
+            "capture_sample_interval_sec": self.capture_sample_interval_sec(),
             "executor": self.executor.get_metrics(),
             "tasks": task_metrics,
         }
@@ -269,7 +381,17 @@ class StreamRuntimeFactory:
             lat_lng=lat_lng, location=location,
             area_code=area_code, group=group,
         )
-        executor = StreamExecutor(stream_id=stream_id, handlers=handlers)
+        executor = StreamExecutor(
+            stream_id=stream_id,
+            handlers=handlers,
+            task_sample_intervals_sec=self.resources.task_sample_intervals_sec,
+            max_queue_size=self.resources.stream_executor_max_queue,
+            backpressure_enabled=self.resources.backpressure_protection_enabled,
+        )
+        task_sample_intervals_sec = {
+            task: max(0.0, float(self.resources.task_sample_intervals_sec.get(task, 0.0)))
+            for task in tasks
+        }
 
         return StreamRuntime(
             stream_id=stream_id,
@@ -279,6 +401,7 @@ class StreamRuntimeFactory:
             model_loader=loader,
             handlers=handlers,
             executor=executor,
+            task_sample_intervals_sec=task_sample_intervals_sec,
             created_at=created_at or time.time(),
             lat_lng=lat_lng,
             location=location,
@@ -331,7 +454,12 @@ class StreamRuntimeFactory:
         if "smoke_flame" in tasks:
             if not self.resources.smoke_service_ready:
                 raise ValueError("smoke_flame task is not available")
-            smoke_handler = SmokeFlameDetectionService()
+            smoke_handler = SmokeFlameDetectionService(
+                backpressure_enabled=self.resources.backpressure_protection_enabled,
+                max_detection_queue_size=self.resources.smoke_detection_max_queue,
+                max_verification_queue_size=self.resources.smoke_verification_max_queue,
+            )
+            smoke_handler.set_frame_skip(0)
             smoke_handler.set_clients(self.resources.minio, self.resources.mongo)
             smoke_handler.set_model_loader(loader)
             if self.resources.qwen_vl_client:
@@ -345,7 +473,10 @@ class StreamRuntimeFactory:
         if "common_space" in tasks:
             if not self.resources.common_space_service_ready:
                 raise ValueError("common_space task is not available")
-            common_space_handler = CommonSpaceDetectionService()
+            common_space_handler = CommonSpaceDetectionService(
+                backpressure_enabled=self.resources.backpressure_protection_enabled,
+                max_analysis_queue_size=self.resources.common_space_max_queue,
+            )
             common_space_handler.set_clients(self.resources.minio, self.resources.mongo)
             common_space_handler.set_qwen_vl_client(self.resources.qwen_vl_client)
             common_space_handler.set_sample_interval(

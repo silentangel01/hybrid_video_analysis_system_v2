@@ -22,12 +22,21 @@ from typing import Any, Dict, List, Optional
 import urllib.request
 import urllib.error
 
+from backend.utils.performance_metrics import get_thread_pool_queue_size
+
 logger = logging.getLogger(__name__)
 
 _CACHE_TTL_SEC = 60.0
 _REQUEST_TIMEOUT_SEC = 5
 _MAX_RETRIES = 2
 _WEBHOOK_SECRET: Optional[str] = os.environ.get("WEBHOOK_SECRET")
+
+
+def _env_flag(name: str, default: bool = True) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 class WebhookService:
@@ -46,6 +55,21 @@ class WebhookService:
         self._cache: Optional[List[Dict[str, Any]]] = None
         self._cache_ts: float = 0.0
         self._cache_lock = threading.Lock()
+        self._stats_lock = threading.Lock()
+        self._enabled = _env_flag("ENABLE_WEBHOOKS", default=True)
+        self._backpressure_enabled = _env_flag(
+            "ENABLE_BACKPRESSURE_PROTECTION",
+            default=False,
+        )
+        self._max_queue_size = max(1, int(os.environ.get("WEBHOOK_MAX_QUEUE", "100")))
+        self._dropped_notifications_total = 0
+
+        if self._enabled:
+            logger.info("Webhook notifications enabled")
+        else:
+            logger.warning("Webhook notifications disabled by ENABLE_WEBHOOKS")
+        if self._backpressure_enabled:
+            logger.info("Webhook queue protection enabled (max_queue_size=%d)", self._max_queue_size)
 
     # ------------------------------------------------------------------
     # CRUD (called from API routes)
@@ -84,6 +108,9 @@ class WebhookService:
 
     def notify(self, event_data: Dict[str, Any]) -> None:
         """Fire-and-forget: POST *event_data* to all matching webhooks."""
+        if not self._enabled:
+            return
+
         configs = self._get_configs()
         if not configs:
             return
@@ -97,6 +124,20 @@ class WebhookService:
             url = cfg.get("url")
             if not url:
                 continue
+            if self._backpressure_enabled:
+                queue_size = get_thread_pool_queue_size(self._executor)
+                if queue_size >= self._max_queue_size:
+                    with self._stats_lock:
+                        self._dropped_notifications_total += 1
+                        dropped_total = self._dropped_notifications_total
+                    if dropped_total == 1 or dropped_total % 50 == 0:
+                        logger.warning(
+                            "Webhook queue full (%d >= %d); dropped %d notification(s)",
+                            queue_size,
+                            self._max_queue_size,
+                            dropped_total,
+                        )
+                    continue
             self._executor.submit(self._post_with_retry, url, event_data)
 
     # ------------------------------------------------------------------

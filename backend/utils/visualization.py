@@ -168,10 +168,8 @@ def render_official_frame(
                     continue
 
                 # 检查是否为违规目标
-                #bbox_key = tuple(bbox)
-                #is_violation = bbox_key in violation_set
-
-                is_violation = detection in violations
+                bbox_key = tuple(bbox)
+                is_violation = bbox_key in violation_set
 
                 color = (0, 0, 255) if is_violation else (0, 255, 0)
 

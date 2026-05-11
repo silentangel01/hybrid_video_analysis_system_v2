@@ -105,6 +105,17 @@ class VideoFrameCapture:
         with self.state_lock:
             return dict(self.source_details.get(source_id, {}))
 
+    def update_sample_interval(self, source_id: str, sample_interval_sec: float):
+        """Update RTSP forwarding cadence without reconnecting the source."""
+        self._set_source_detail(
+            source_id,
+            sample_interval_sec=max(0.0, float(sample_interval_sec)),
+        )
+
+    def _get_sample_interval(self, source_id: str, fallback: float) -> float:
+        detail = self._get_source_detail(source_id)
+        return max(0.0, float(detail.get("sample_interval_sec", fallback)))
+
     def _build_rtsp_open_error(self, url: str) -> str:
         parsed = urlparse(url)
         path = parsed.path.lstrip("/") or "<empty>"
@@ -209,6 +220,7 @@ class VideoFrameCapture:
             retry_count=0,
             last_connected_at=None,
             last_frame_at=None,
+            sample_interval_sec=max(0.0, float(sample_interval_sec)),
         )
         thread = threading.Thread(
             target=self._rtsp_loop,
@@ -326,8 +338,13 @@ class VideoFrameCapture:
                 )
 
                 # --- Time-based sampling ---
-                if current_time - last_sample_time < sample_interval_sec:
+                current_sample_interval = self._get_sample_interval(
+                    source_id,
+                    sample_interval_sec,
+                )
+                if current_time - last_sample_time < current_sample_interval:
                     frames_skipped += 1
+                    self._increment_source_perf(source_id, "frames_skipped_total")
                     continue
                 last_sample_time = current_time
 

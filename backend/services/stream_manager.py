@@ -106,15 +106,15 @@ class StreamManager:
         return True
 
     def update_tasks(self, stream_id: str, tasks: List[str]) -> bool:
-        """Rebuild the per-stream runtime when task composition changes."""
+        """Update task composition without re-subscribing to the RTSP source."""
         tasks = [t for t in tasks if t in self.VALID_TASKS]
         if not tasks:
-            return False
+            raise ValueError(f"No valid tasks provided. Choose from: {sorted(self.VALID_TASKS)}")
 
         with self.lock:
             current = self.streams.get(stream_id)
             if current is None:
-                return False
+                raise LookupError(f"{stream_id} not found")
             current.status = "switching"
 
         try:
@@ -124,7 +124,61 @@ class StreamManager:
             current.status = "running"
             raise
 
-        new_runtime = self.runtime_factory.create_runtime(
+        try:
+            new_runtime = self._create_replacement_runtime(current, tasks)
+        except Exception:
+            current.status = "running"
+            raise
+
+        old_executor = current.executor
+        old_handlers = current.handlers
+
+        with self.lock:
+            if self.streams.get(stream_id) is not current:
+                current.status = "running"
+                logger.warning("[StreamManager] Runtime for %s changed during update; discarding", stream_id)
+                raise RuntimeError(f"Runtime for {stream_id} changed during update; please retry")
+
+            current.tasks = new_runtime.tasks
+            current.model_loader = new_runtime.model_loader
+            current.handlers = new_runtime.handlers
+            current.executor = new_runtime.executor
+            current.task_sample_intervals_sec = new_runtime.task_sample_intervals_sec
+            current.status = "running"
+
+        old_executor.shutdown()
+        self._shutdown_retired_handlers(old_handlers)
+
+        if current.capture and hasattr(current.capture, "update_sample_interval"):
+            current.capture.update_sample_interval(
+                current.stream_id,
+                current.capture_sample_interval_sec(),
+            )
+
+        self._persist_stream(current)
+        logger.info("[StreamManager] Updated tasks for %s: %s", stream_id, tasks)
+        return True
+
+    def _shutdown_retired_handlers(self, handlers: Dict[str, object]):
+        """Stop handler-owned worker pools after an in-place task reconfiguration."""
+        for task_name, handler in handlers.items():
+            for attr in ("detection_pool", "verification_pool", "analysis_pool"):
+                pool = getattr(handler, attr, None)
+                shutdown = getattr(pool, "shutdown", None)
+                if not callable(shutdown):
+                    continue
+                try:
+                    shutdown(wait=False)
+                except Exception as e:
+                    logger.warning(
+                        "[StreamManager] Failed to shutdown retired %s %s: %s",
+                        task_name,
+                        attr,
+                        e,
+                    )
+
+    def _create_replacement_runtime(self, current: StreamRuntime, tasks: List[str]) -> StreamRuntime:
+        runtime = self.runtime_factory.create_runtime(
             stream_id=current.stream_id,
             url=current.url,
             tasks=tasks,
@@ -135,37 +189,8 @@ class StreamManager:
             area_code=current.area_code,
             group=current.group,
         )
-        new_runtime.status = "switching"
-
-        try:
-            self._start_capture(new_runtime)
-            new_ready = self._wait_capture_ready(new_runtime, timeout_sec=3.0)
-        except Exception as e:
-            current.status = "running"
-            logger.error("[StreamManager] Failed to rebuild runtime for %s: %s", stream_id, e)
-            return False
-
-        if not new_ready:
-            current.status = "running"
-            new_runtime.stop()
-            logger.error("[StreamManager] Timed out waiting for rebuilt runtime of %s", stream_id)
-            return False
-
-        with self.lock:
-            old_runtime = self.streams.get(stream_id)
-            if old_runtime is not current:
-                new_runtime.stop()
-                logger.warning("[StreamManager] Runtime for %s changed during update; discarding", stream_id)
-                return False
-            self.streams[stream_id] = new_runtime
-
-        if old_runtime is not None:
-            old_runtime.stop()
-
-        new_runtime.status = "running"
-        self._persist_stream(new_runtime)
-        logger.info("[StreamManager] Updated tasks for %s: %s", stream_id, tasks)
-        return True
+        runtime.status = "switching"
+        return runtime
 
     def get_streams(self) -> List[Dict]:
         """Return a serialisable snapshot of all streams."""
@@ -271,20 +296,17 @@ class StreamManager:
                 loop_play=True,
             )
         else:
+            rtsp_sample_interval = runtime.capture_sample_interval_sec()
             cap.add_rtsp_source(
                 source_id=runtime.stream_id,
                 rtsp_url=runtime.url,
                 batch_size=1,
                 batch_sec=1.0,
                 reconnect_delay=5,
-                sample_interval_sec=0,
+                sample_interval_sec=rtsp_sample_interval,
             )
 
         runtime.capture = cap
-
-    def _wait_capture_ready(self, runtime: StreamRuntime, timeout_sec: float = 3.0) -> bool:
-        """Wait until the rebuilt runtime receives its first captured batch."""
-        return runtime.started_event.wait(timeout=timeout_sec)
 
     def _make_callback(self, runtime: StreamRuntime):
         """Return the batch callback bound to a specific StreamRuntime."""

@@ -1,0 +1,9 @@
+name: New Environment
+values:
+  - key: HVAS_BASE_URL
+    value: ''
+  - key: MUBS_BASE_URL
+    value: ''
+  - key: WEBHOOK_SECRET
+    value: ''
+color: 240

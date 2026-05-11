@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "test_type": "yolo_detection_fps_benchmark",
+  "created_at": "2026-05-07T14:41:38",
+  "source": "test\\data\\yolo_benchmark\\fire_smoke.mp4",
+  "weights": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\ml_models\\yolov8\\weights\\smoke_flame.pt",
+  "parameters": {
+    "conf": 0.25,
+    "iou": 0.45,
+    "device": "cuda",
+    "duration_sec": 60.0,
+    "warmup_sec": 10.0,
+    "preloaded_frames": 78
+  },
+  "summary": {
+    "frames_processed": 4397,
+    "elapsed_sec": 60.01,
+    "avg_fps": 73.271,
+    "latency_avg_ms": 13.641,
+    "latency_p50_ms": 13.35,
+    "latency_p95_ms": 17.28,
+    "latency_p99_ms": 19.929,
+    "detections_per_frame_avg": 8.536
+  },
+  "device_info": {
+    "requested_device": "cuda",
+    "torch_version": "2.12.0.dev20260408+cu128",
+    "cuda_available": true,
+    "cuda_device_name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+    "cuda_memory_total_mb": 12226.56,
+    "cuda_max_memory_allocated_mb": 64.23
+  }
+}

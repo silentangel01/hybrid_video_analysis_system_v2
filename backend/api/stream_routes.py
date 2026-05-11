@@ -120,10 +120,22 @@ def update_tasks(stream_id):
     if not tasks or not isinstance(tasks, list):
         return jsonify({"error": "tasks must be a non-empty list"}), 400
 
-    ok = _stream_manager.update_tasks(stream_id, tasks)
+    try:
+        ok = _stream_manager.update_tasks(stream_id, tasks)
+    except LookupError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        logger.error("[API] update_tasks runtime error for %s: %s", stream_id, e)
+        return jsonify({"error": str(e)}), 409
+    except Exception as e:
+        logger.error("[API] update_tasks unexpected error for %s: %s", stream_id, e, exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
+
     if ok:
         return jsonify({"stream_id": stream_id, "tasks": tasks}), 200
-    return jsonify({"error": f"{stream_id} not found or invalid tasks"}), 404
+    return jsonify({"error": f"Failed to update tasks for {stream_id}"}), 500
 
 
 # ------------------------------------------------------------------

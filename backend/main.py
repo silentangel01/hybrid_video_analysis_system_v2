@@ -28,12 +28,39 @@ if load_dotenv is None:
 elif os.path.exists(dotenv_path):
     logger.info("Loaded environment variables from %s", dotenv_path)
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return float(default)
+    return float(raw)
+
 
 # ------------------------------------------------------------------
 # Config
 # ------------------------------------------------------------------
 def load_config() -> Dict[str, Any]:
     """Load configuration from environment variables with defaults."""
+    legacy_rtsp_sample_interval = _env_float("RTSP_SAMPLE_INTERVAL", 0.5)
+    common_space_interval_sec = _env_float("COMMON_SPACE_INTERVAL", 30.0)
+    task_sample_intervals_sec = {
+        "parking_violation": _env_float(
+            "PARKING_RTSP_SAMPLE_INTERVAL",
+            legacy_rtsp_sample_interval,
+        ),
+        "smoke_flame": _env_float("SMOKE_RTSP_SAMPLE_INTERVAL", 0.2),
+        "common_space": _env_float(
+            "COMMON_SPACE_RTSP_SAMPLE_INTERVAL",
+            common_space_interval_sec,
+        ),
+    }
+
     return {
         "minio_endpoint": os.getenv("MINIO_ENDPOINT", "localhost:9000"),
         "minio_access_key": os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
@@ -42,8 +69,15 @@ def load_config() -> Dict[str, Any]:
         "mongo_uri": os.getenv("MONGO_URI", "mongodb://localhost:27017"),
         "mongo_db_name": os.getenv("MONGO_DB_NAME", "video_analysis_db"),
         "upload_folder": os.getenv("UPLOAD_FOLDER", "./uploads"),
-        "frame_interval_sec": float(os.getenv("FRAME_INTERVAL", "1.0")),
-        "common_space_interval_sec": float(os.getenv("COMMON_SPACE_INTERVAL", "30.0")),
+        "frame_interval_sec": _env_float("FRAME_INTERVAL", 1.0),
+        "common_space_interval_sec": common_space_interval_sec,
+        "backpressure_protection_enabled": _env_flag("ENABLE_BACKPRESSURE_PROTECTION", default=False),
+        "rtsp_sample_interval_sec": legacy_rtsp_sample_interval,
+        "task_sample_intervals_sec": task_sample_intervals_sec,
+        "stream_executor_max_queue": int(os.getenv("STREAM_EXECUTOR_MAX_QUEUE", "24")),
+        "smoke_detection_max_queue": int(os.getenv("SMOKE_DETECTION_MAX_QUEUE", "8")),
+        "smoke_verification_max_queue": int(os.getenv("SMOKE_VERIFICATION_MAX_QUEUE", "12")),
+        "common_space_max_queue": int(os.getenv("COMMON_SPACE_MAX_QUEUE", "4")),
         "rtsp_urls": os.getenv("RTSP_URLS", "").split(","),
         "qwen_vl_api_url": os.getenv("QWEN_VL_API_URL", ""),
         "qwen_vl_api_key": os.getenv("QWEN_VL_API_KEY", ""),
@@ -63,7 +97,6 @@ def load_config() -> Dict[str, Any]:
 # ------------------------------------------------------------------
 def initialize_services(cfg: Dict[str, Any]):
     """Initialise all shared services and return them as a dict."""
-
     from storage.minio_client import MinIOClient
     from storage.mongodb_client import MongoDBClient
 
@@ -93,6 +126,11 @@ def initialize_services(cfg: Dict[str, Any]):
             logger.warning("torch not installed with CUDA support, falling back to CPU")
             yolo_device = "cpu"
     logger.info("YOLO inference device: %s", yolo_device or "auto (CPU)")
+    logger.info(
+        "Backpressure protection: %s",
+        "enabled" if cfg["backpressure_protection_enabled"] else "disabled",
+    )
+    logger.info("RTSP task sampling intervals: %s", cfg["task_sample_intervals_sec"])
 
     loader = YOLOModelLoader(device=yolo_device)
     loader.load_model("vehicle", "yolov8n.pt")
@@ -137,6 +175,11 @@ def initialize_services(cfg: Dict[str, Any]):
         try:
             url, key, model = get_params()
             qwen_vl_client = QwenVLAPIClient(api_url=url, api_key=key, model_name=model)
+            smoke_flame_detection_service.configure_backpressure(
+                enabled=cfg["backpressure_protection_enabled"],
+                max_detection_queue_size=cfg["smoke_detection_max_queue"],
+                max_verification_queue_size=cfg["smoke_verification_max_queue"],
+            )
             smoke_flame_detection_service.set_clients(minio, mongo)
             smoke_flame_detection_service.set_model_loader(loader)
             smoke_flame_detection_service.set_qwen_vl_client(qwen_vl_client)
@@ -152,6 +195,10 @@ def initialize_services(cfg: Dict[str, Any]):
     common_space_service_ready = False
     if qwen_vl_client:
         try:
+            common_space_detection_service.configure_backpressure(
+                enabled=cfg["backpressure_protection_enabled"],
+                max_analysis_queue_size=cfg["common_space_max_queue"],
+            )
             common_space_detection_service.set_clients(minio, mongo)
             common_space_detection_service.set_qwen_vl_client(qwen_vl_client)
             common_space_detection_service.set_sample_interval(cfg["common_space_interval_sec"])
@@ -218,6 +265,13 @@ def initialize_services(cfg: Dict[str, Any]):
         smoke_service_ready=smoke_service_ready,
         common_space_service_ready=common_space_service_ready,
         common_space_interval_sec=cfg["common_space_interval_sec"],
+        task_sample_intervals_sec=cfg["task_sample_intervals_sec"],
+        backpressure_protection_enabled=cfg["backpressure_protection_enabled"],
+        rtsp_sample_interval_sec=cfg["rtsp_sample_interval_sec"],
+        stream_executor_max_queue=cfg["stream_executor_max_queue"],
+        smoke_detection_max_queue=cfg["smoke_detection_max_queue"],
+        smoke_verification_max_queue=cfg["smoke_verification_max_queue"],
+        common_space_max_queue=cfg["common_space_max_queue"],
         dwell_threshold=cfg["dwell_threshold"],
         weights_dir=loader.weights_dir,
     )

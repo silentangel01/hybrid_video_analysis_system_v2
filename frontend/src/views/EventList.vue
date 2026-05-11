@@ -43,7 +43,16 @@
 
     <!-- Events grid -->
     <div v-else class="events-grid">
-      <div v-for="event in paginatedEvents" :key="event._id" class="event-card">
+      <div
+        v-for="event in paginatedEvents"
+        :key="event._id"
+        class="event-card"
+        role="button"
+        tabindex="0"
+        @click="openEventDetail(event)"
+        @keydown.enter="openEventDetail(event)"
+        @keydown.space.prevent="openEventDetail(event)"
+      >
         <div class="event-head">
           <span class="event-type-tag" :class="'type-' + event.event_type">{{ typeLabel(event.event_type) }}</span>
           <span class="confidence">{{ (event.confidence * 100).toFixed(1) }}%</span>
@@ -84,13 +93,32 @@
           <p><span class="detail-label">Description: </span>{{ event.description }}</p>
         </div>
 
+        <div v-if="event.image_url" class="event-detail event-url-block">
+          <p class="event-url-row">
+            <span class="detail-label">Image URL: </span>
+            <a
+              :href="event.image_url"
+              class="event-url-link"
+              target="_blank"
+              rel="noopener noreferrer"
+              :title="event.image_url"
+              @click.stop
+            >
+              {{ event.image_url }}
+            </a>
+          </p>
+          <button class="copy-url-btn" @click.stop="copyText(event._id, event.image_url)">
+            {{ copiedEventId === event._id ? 'Copied' : 'Copy URL' }}
+          </button>
+        </div>
+
         <div v-if="event.event_type === 'parking_violation'" class="violation-tag">Violation</div>
 
         <div v-if="event.image_url" class="image-preview">
           <img
             :src="event.image_url"
             :alt="typeLabel(event.event_type)"
-            @click="openImage(event.image_url)"
+            @click.stop="openImage(event.image_url)"
             @error="handleImageError"
             loading="lazy"
           />
@@ -110,6 +138,48 @@
     <div v-if="fullImage" class="image-modal" @click="closeFullImage">
       <img :src="fullImage" alt="Full image" @click.stop />
     </div>
+
+    <!-- Event detail modal -->
+    <div v-if="selectedEvent" class="event-detail-modal" @click="closeEventDetail">
+      <article class="event-detail-card" @click.stop>
+        <header class="event-detail-header">
+          <div>
+            <span class="event-type-tag" :class="'type-' + selectedEvent.event_type">{{ typeLabel(selectedEvent.event_type) }}</span>
+            <h3>{{ selectedEvent.description || 'Event Detail' }}</h3>
+            <p class="event-id-line">Event ID: {{ eventId(selectedEvent) }}</p>
+          </div>
+          <button class="modal-close-btn" @click="closeEventDetail" aria-label="Close event detail">Close</button>
+        </header>
+
+        <div v-if="detailLoading" class="detail-loading">Loading detail...</div>
+        <div v-if="detailError" class="detail-error">{{ detailError }}</div>
+
+        <div v-if="selectedEvent.image_url" class="detail-image-wrap">
+          <img
+            :src="selectedEvent.image_url"
+            :alt="typeLabel(selectedEvent.event_type)"
+            @click="openImage(selectedEvent.image_url)"
+            @error="handleImageError"
+          />
+        </div>
+
+        <section class="detail-section">
+          <div class="detail-section-head">
+            <h4>All Attributes</h4>
+            <button class="copy-url-btn" @click="copyText(eventId(selectedEvent), formatJsonValue(selectedEvent))">
+              {{ copiedEventId === eventId(selectedEvent) ? 'Copied' : 'Copy JSON' }}
+            </button>
+          </div>
+          <div class="attribute-list">
+            <div v-for="[key, value] in eventDetailEntries" :key="key" class="attribute-row">
+              <span class="attribute-key">{{ formatDetailKey(key) }}</span>
+              <pre v-if="isComplexValue(value)" class="attribute-pre">{{ formatJsonValue(value) }}</pre>
+              <span v-else class="attribute-value">{{ formatDetailValue(key, value) }}</span>
+            </div>
+          </div>
+        </section>
+      </article>
+    </div>
   </div>
 </template>
 
@@ -120,6 +190,10 @@ const events = ref([])
 const loading = ref(false)
 const error = ref(null)
 const fullImage = ref(null)
+const copiedEventId = ref(null)
+const selectedEvent = ref(null)
+const detailLoading = ref(false)
+const detailError = ref(null)
 const currentPage = ref(1)
 const itemsPerPage = 10
 
@@ -241,6 +315,17 @@ const paginatedEvents = computed(() => {
   return filteredEvents.value.slice(start, start + itemsPerPage)
 })
 
+const eventDetailEntries = computed(() => {
+  if (!selectedEvent.value) return []
+  return Object.entries(selectedEvent.value).sort(([a], [b]) => {
+    const order = ['_id', 'event_id', 'event_type', 'camera_id', 'timestamp', 'frame_index', 'confidence', 'description', 'image_url']
+    const ai = order.indexOf(a)
+    const bi = order.indexOf(b)
+    if (ai !== -1 || bi !== -1) return (ai === -1 ? order.length : ai) - (bi === -1 ? order.length : bi)
+    return a.localeCompare(b)
+  })
+})
+
 watch([filterType, filterTime], () => {
   currentPage.value = 1
 })
@@ -280,8 +365,88 @@ function formatTimestamp(timestamp) {
 function openImage(url) { fullImage.value = url }
 function closeFullImage() { fullImage.value = null }
 
+function eventId(event) {
+  return event?._id || event?.event_id || '-'
+}
+
+async function openEventDetail(event) {
+  selectedEvent.value = event
+  detailError.value = null
+
+  const id = eventId(event)
+  if (!id || id === '-') return
+
+  detailLoading.value = true
+  try {
+    const response = await fetch(`http://localhost:5000/api/events/${encodeURIComponent(id)}`)
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    selectedEvent.value = await response.json()
+  } catch (err) {
+    detailError.value = `Using list data; detail request failed: ${err.message || 'request failed'}`
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+function closeEventDetail() {
+  selectedEvent.value = null
+  detailLoading.value = false
+  detailError.value = null
+}
+
+function formatDetailKey(key) {
+  if (key === '_id') return 'eventID'
+  return String(key).replace(/_/g, ' ')
+}
+
+function isComplexValue(value) {
+  return value !== null && typeof value === 'object'
+}
+
+function formatJsonValue(value) {
+  return JSON.stringify(value, null, 2)
+}
+
+function formatDetailValue(key, value) {
+  if (value === null || value === undefined || value === '') return '-'
+  if (typeof value === 'number' && key === 'timestamp') {
+    return `${formatTimestamp(value)} (${value})`
+  }
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  return String(value)
+}
+
 function handleImageError(e) {
   e.target.style.opacity = '0.3'
+}
+
+async function copyText(eventId, text) {
+  if (!text) return
+
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.setAttribute('readonly', '')
+      textarea.style.position = 'absolute'
+      textarea.style.left = '-9999px'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+
+    copiedEventId.value = eventId
+    window.setTimeout(() => {
+      if (copiedEventId.value === eventId) {
+        copiedEventId.value = null
+      }
+    }, 1500)
+  } catch {
+    copiedEventId.value = null
+  }
 }
 
 onMounted(() => {
@@ -411,10 +576,13 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   padding: 16px;
   transition: border-color 0.2s;
+  cursor: pointer;
 }
 
-.event-card:hover {
+.event-card:hover,
+.event-card:focus-visible {
   border-color: var(--color-accent);
+  outline: none;
 }
 
 .event-head {
@@ -460,6 +628,37 @@ onUnmounted(() => {
   font-size: 13px;
   color: var(--color-text-secondary);
   margin-bottom: 2px;
+}
+
+.event-url-block {
+  padding-top: 4px;
+}
+
+.event-url-row {
+  margin-bottom: 8px;
+}
+
+.event-url-link {
+  color: var(--color-accent);
+  word-break: break-all;
+  user-select: text;
+}
+
+.event-url-link:hover {
+  text-decoration: underline;
+}
+
+.copy-url-btn {
+  padding: 5px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  font-size: 12px;
+}
+
+.copy-url-btn:hover {
+  background: var(--color-bg-hover);
 }
 
 .analysis-details {
@@ -554,7 +753,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 3000;
   cursor: pointer;
 }
 
@@ -563,5 +762,172 @@ onUnmounted(() => {
   max-height: 90%;
   object-fit: contain;
   border-radius: var(--radius-md);
+}
+
+/* Event detail modal */
+.event-detail-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.event-detail-card {
+  width: min(980px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+}
+
+.event-detail-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.event-detail-header h3 {
+  margin-top: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.event-id-line {
+  margin-top: 4px;
+  font-family: "Cascadia Code", "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  word-break: break-all;
+}
+
+.modal-close-btn {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.modal-close-btn:hover {
+  background: var(--color-bg-hover);
+}
+
+.detail-loading,
+.detail-error {
+  margin: 14px 20px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.detail-loading {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+}
+
+.detail-error {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--color-warning);
+}
+
+.detail-image-wrap {
+  padding: 18px 20px 0;
+}
+
+.detail-image-wrap img {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
+  cursor: zoom-in;
+}
+
+.detail-section {
+  padding: 18px 20px 20px;
+}
+
+.detail-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.detail-section h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.attribute-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.attribute-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.attribute-row:last-child {
+  border-bottom: 0;
+}
+
+.attribute-key {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+}
+
+.attribute-value,
+.attribute-pre {
+  min-width: 0;
+  font-family: "Cascadia Code", "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  word-break: break-word;
+}
+
+.attribute-pre {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 720px) {
+  .event-detail-modal {
+    padding: 12px;
+  }
+
+  .event-detail-header {
+    flex-direction: column;
+  }
+
+  .attribute-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 }
 </style>

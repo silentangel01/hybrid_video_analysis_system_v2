@@ -549,12 +549,13 @@ async function saveTasks(id) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tasks: editTasks.value })
     })
+    const data = await res.json().catch(() => ({}))
     if (res.ok) {
       showMsg(`Updated ${id}`)
       editing.value = null
       await fetchStreams()
     } else {
-      showMsg('Failed to update', 'error')
+      showMsg(data.error || 'Failed to update', 'error')
     }
   } catch {
     showMsg('Network error', 'error')

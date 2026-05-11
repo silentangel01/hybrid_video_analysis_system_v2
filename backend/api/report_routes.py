@@ -159,7 +159,7 @@ def generate_common_space_report_llm():
     stream_url = str(data.get("url") or "").strip()
     start_time = data.get("start_time")
     end_time = data.get("end_time")
-    language = str(data.get("language") or "zh-CN").strip()
+    language = str(data.get("language") or "en-US").strip()
 
     if not stream_id and not stream_url:
         return jsonify({"success": False, "error": "stream_id or url is required"}), 400

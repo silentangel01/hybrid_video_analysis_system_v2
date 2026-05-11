@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "test_type": "yolo_detection_fps_benchmark",
+  "created_at": "2026-05-07T14:40:12",
+  "source": "test\\data\\yolo_benchmark\\fire_smoke.mp4",
+  "weights": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\ml_models\\yolov8\\weights\\smoke_flame.pt",
+  "parameters": {
+    "conf": 0.25,
+    "iou": 0.45,
+    "device": "cpu",
+    "duration_sec": 30.0,
+    "warmup_sec": 5.0,
+    "preloaded_frames": 78
+  },
+  "summary": {
+    "frames_processed": 1466,
+    "elapsed_sec": 30.014,
+    "avg_fps": 48.844,
+    "latency_avg_ms": 20.471,
+    "latency_p50_ms": 21.377,
+    "latency_p95_ms": 25.901,
+    "latency_p99_ms": 27.145,
+    "detections_per_frame_avg": 8.51
+  },
+  "device_info": {
+    "requested_device": "cpu",
+    "torch_version": "2.12.0.dev20260408+cu128",
+    "cuda_available": false
+  }
+}

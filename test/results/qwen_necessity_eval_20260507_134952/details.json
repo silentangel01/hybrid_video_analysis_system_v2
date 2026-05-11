@@ -1,0 +1,526 @@
+{
+  "schema_version": 1,
+  "test_type": "negative_set_yolo_vs_yolo_qwen_necessity_eval",
+  "created_at": "2026-05-07T13:50:04",
+  "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke",
+  "weights": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\ml_models\\yolov8\\weights\\smoke_flame.pt",
+  "parameters": {
+    "conf": 0.1,
+    "iou": 0.45,
+    "device": "model-default",
+    "classes": [
+      "fire",
+      "flame",
+      "smoke"
+    ],
+    "sample_every": 30,
+    "max_frames": null,
+    "min_area_ratio": 0.0001,
+    "qwen_max_candidates_per_frame": 8,
+    "qwen_workers": 2,
+    "save_crops": true
+  },
+  "qwen_config": {
+    "api_url": "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+    "model_name": "qwen-vl-plus",
+    "timeout": 30
+  },
+  "summary": {
+    "frames_total": 8,
+    "yolo_only_frames_with_false_positive": 8,
+    "yolo_only_false_positive_detections_total": 14,
+    "yolo_only_false_positive_frame_rate": 1.0,
+    "yolo_only_false_positives_per_1000_frames": 1750.0,
+    "yolo_qwen_frames_with_false_positive": 1,
+    "yolo_qwen_false_positive_detections_total": 1,
+    "yolo_qwen_false_positive_frame_rate": 0.125,
+    "yolo_qwen_false_positives_per_1000_frames": 125.0,
+    "detection_reduction": {
+      "absolute_reduction": 13,
+      "relative_reduction_rate": 0.928571
+    },
+    "frame_rate_reduction": {
+      "absolute_reduction": 7,
+      "relative_reduction_rate": 0.875
+    },
+    "yolo_latency_avg_ms": 70.756,
+    "yolo_latency_p95_ms": 316.202,
+    "qwen_request_latency_avg_ms": 1074.139,
+    "qwen_request_latency_p95_ms": 1588.497,
+    "qwen_requests_total": 14,
+    "qwen_errors_total": 0,
+    "elapsed_sec": 11.069
+  },
+  "yolo_detections_by_class": {
+    "fire": 11,
+    "smoke": 3
+  },
+  "qwen_answer_counts": {
+    "no.": 5,
+    "no": 8,
+    "yes": 1
+  },
+  "qwen_error_examples": [],
+  "per_frame": [
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=30",
+      "yolo_candidate_count": 1,
+      "qwen_verified_positive_count": 0,
+      "qwen_rejected_count": 1
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=60",
+      "yolo_candidate_count": 3,
+      "qwen_verified_positive_count": 0,
+      "qwen_rejected_count": 3
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=90",
+      "yolo_candidate_count": 2,
+      "qwen_verified_positive_count": 0,
+      "qwen_rejected_count": 2
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=120",
+      "yolo_candidate_count": 1,
+      "qwen_verified_positive_count": 0,
+      "qwen_rejected_count": 1
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=150",
+      "yolo_candidate_count": 2,
+      "qwen_verified_positive_count": 1,
+      "qwen_rejected_count": 1
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=180",
+      "yolo_candidate_count": 1,
+      "qwen_verified_positive_count": 0,
+      "qwen_rejected_count": 1
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=210",
+      "yolo_candidate_count": 2,
+      "qwen_verified_positive_count": 0,
+      "qwen_rejected_count": 2
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=240",
+      "yolo_candidate_count": 2,
+      "qwen_verified_positive_count": 0,
+      "qwen_rejected_count": 2
+    }
+  ],
+  "top_yolo_false_positive_examples": [
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=180",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.8889,
+      "bbox": [
+        29,
+        107,
+        685,
+        851
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=150",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.8578,
+      "bbox": [
+        20,
+        53,
+        678,
+        793
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=210",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.8447,
+      "bbox": [
+        48,
+        192,
+        681,
+        896
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=240",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.8332,
+      "bbox": [
+        44,
+        244,
+        703,
+        966
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=60",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.5003,
+      "bbox": [
+        432,
+        392,
+        531,
+        437
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=240",
+      "candidate_index": 1,
+      "class_name": "fire",
+      "confidence": 0.3518,
+      "bbox": [
+        520,
+        96,
+        621,
+        158
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=60",
+      "candidate_index": 1,
+      "class_name": "smoke",
+      "confidence": 0.2631,
+      "bbox": [
+        222,
+        141,
+        373,
+        288
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=30",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.2608,
+      "bbox": [
+        270,
+        557,
+        391,
+        642
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=120",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.2078,
+      "bbox": [
+        44,
+        141,
+        675,
+        793
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=60",
+      "candidate_index": 2,
+      "class_name": "fire",
+      "confidence": 0.1941,
+      "bbox": [
+        291,
+        567,
+        389,
+        650
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=150",
+      "candidate_index": 1,
+      "class_name": "smoke",
+      "confidence": 0.1894,
+      "bbox": [
+        271,
+        0,
+        653,
+        70
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=210",
+      "candidate_index": 1,
+      "class_name": "fire",
+      "confidence": 0.1635,
+      "bbox": [
+        532,
+        14,
+        642,
+        88
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=90",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.1451,
+      "bbox": [
+        432,
+        421,
+        530,
+        464
+      ]
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=90",
+      "candidate_index": 1,
+      "class_name": "smoke",
+      "confidence": 0.1001,
+      "bbox": [
+        232,
+        182,
+        468,
+        305
+      ]
+    }
+  ],
+  "top_qwen_remaining_false_positive_examples": [
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=150",
+      "candidate_index": 1,
+      "class_name": "smoke",
+      "confidence": 0.1894,
+      "bbox": [
+        271,
+        0,
+        653,
+        70
+      ],
+      "qwen_positive": true,
+      "qwen_answer": "yes",
+      "qwen_latency_ms": 1010.243,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_5_candidate_1_smoke_0_189.jpg"
+    }
+  ],
+  "top_qwen_rejected_examples": [
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=180",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.8889,
+      "bbox": [
+        29,
+        107,
+        685,
+        851
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no",
+      "qwen_latency_ms": 946.409,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_6_candidate_0_fire_0_889.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=150",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.8578,
+      "bbox": [
+        20,
+        53,
+        678,
+        793
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no",
+      "qwen_latency_ms": 1062.299,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_5_candidate_0_fire_0_858.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=210",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.8447,
+      "bbox": [
+        48,
+        192,
+        681,
+        896
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no",
+      "qwen_latency_ms": 1084.357,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_7_candidate_0_fire_0_845.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=240",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.8332,
+      "bbox": [
+        44,
+        244,
+        703,
+        966
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no",
+      "qwen_latency_ms": 1026.218,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_8_candidate_0_fire_0_833.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=60",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.5003,
+      "bbox": [
+        432,
+        392,
+        531,
+        437
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no.",
+      "qwen_latency_ms": 966.567,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_2_candidate_0_fire_0_500.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=240",
+      "candidate_index": 1,
+      "class_name": "fire",
+      "confidence": 0.3518,
+      "bbox": [
+        520,
+        96,
+        621,
+        158
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no",
+      "qwen_latency_ms": 2524.756,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_8_candidate_1_fire_0_352.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=60",
+      "candidate_index": 1,
+      "class_name": "smoke",
+      "confidence": 0.2631,
+      "bbox": [
+        222,
+        141,
+        373,
+        288
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no",
+      "qwen_latency_ms": 932.495,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_2_candidate_1_smoke_0_263.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=30",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.2608,
+      "bbox": [
+        270,
+        557,
+        391,
+        642
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no.",
+      "qwen_latency_ms": 792.165,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_1_candidate_0_fire_0_261.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=120",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.2078,
+      "bbox": [
+        44,
+        141,
+        675,
+        793
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no",
+      "qwen_latency_ms": 898.817,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_4_candidate_0_fire_0_208.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=60",
+      "candidate_index": 2,
+      "class_name": "fire",
+      "confidence": 0.1941,
+      "bbox": [
+        291,
+        567,
+        389,
+        650
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no.",
+      "qwen_latency_ms": 902.153,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_2_candidate_2_fire_0_194.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=210",
+      "candidate_index": 1,
+      "class_name": "fire",
+      "confidence": 0.1635,
+      "bbox": [
+        532,
+        14,
+        642,
+        88
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no.",
+      "qwen_latency_ms": 1034.146,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_7_candidate_1_fire_0_163.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=90",
+      "candidate_index": 0,
+      "class_name": "fire",
+      "confidence": 0.1451,
+      "bbox": [
+        432,
+        421,
+        530,
+        464
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no.",
+      "qwen_latency_ms": 925.402,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_3_candidate_0_fire_0_145.jpg"
+    },
+    {
+      "source": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\data\\negative_smoke\\sunset.mp4#frame=90",
+      "candidate_index": 1,
+      "class_name": "smoke",
+      "confidence": 0.1001,
+      "bbox": [
+        232,
+        182,
+        468,
+        305
+      ],
+      "qwen_positive": false,
+      "qwen_answer": "no",
+      "qwen_latency_ms": 931.92,
+      "qwen_error": "",
+      "crop_path": "D:\\Final_Project_Code\\hybrid_video_analysis_system_v2\\test\\results\\qwen_necessity_eval_20260507_134952\\crops\\frame_3_candidate_1_smoke_0_100.jpg"
+    }
+  ]
+}

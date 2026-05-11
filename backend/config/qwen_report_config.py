@@ -40,7 +40,7 @@ class QwenReportAPIConfig:
                 "timeout": int(os.getenv("QWEN_REPORT_TIMEOUT", "30")),
                 "temperature": float(os.getenv("QWEN_REPORT_TEMPERATURE", "0.2")),
                 "max_tokens": int(os.getenv("QWEN_REPORT_MAX_TOKENS", "700")),
-                "language": os.getenv("QWEN_REPORT_LANGUAGE", "zh-CN"),
+                "language": os.getenv("QWEN_REPORT_LANGUAGE", "en-US"),
             }
         }
 

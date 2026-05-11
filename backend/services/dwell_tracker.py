@@ -66,8 +66,9 @@ class DwellTracker:
         inside a no-parking zone.
 
         Returns the subset of detections whose corresponding tracks have
-        reached ``dwell_threshold`` consecutive frames and have not yet been
-        reported.  Each returned detection is enriched with a ``track_id`` key.
+        reached ``dwell_threshold`` consecutive frames and has not already
+        been reported for the current in-zone episode. Each returned detection
+        is enriched with a ``track_id`` key.
         """
         # Build centres for incoming detections
         incoming: List[Tuple[float, float, Dict[str, Any]]] = []
@@ -134,13 +135,13 @@ class DwellTracker:
                 track.reported = False
                 track.dwell_frames = 0
 
-        # Collect newly-qualifying violations
+        # Collect newly qualifying violations
         triggered: List[Dict[str, Any]] = []
         for track in self._tracks:
             if (
                 track.dwell_frames >= self.dwell_threshold
-                and not track.reported
                 and track.missing_frames == 0
+                and not track.reported
             ):
                 track.reported = True
                 det = dict(track.last_detection)

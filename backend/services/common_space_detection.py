@@ -35,7 +35,11 @@ logger = logging.getLogger(__name__)
 class CommonSpaceDetectionService:
     """Periodic sampling + Qwen-VL space utilisation analysis."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        backpressure_enabled: bool = False,
+        max_analysis_queue_size: int = 4,
+    ):
         self.minio_client: Optional[MinIOClient] = None
         self.mongo_client: Optional[MongoDBClient] = None
         self.qwen_vl_client = None
@@ -43,6 +47,8 @@ class CommonSpaceDetectionService:
         self.sample_lock = threading.Lock()
         self.metrics_lock = threading.Lock()
         self.analysis_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="common-space")
+        self.backpressure_enabled = bool(backpressure_enabled)
+        self.max_analysis_queue_size = max(1, int(max_analysis_queue_size))
 
         self.sample_interval = 30  # seconds
         self.last_sample_time: Dict[str, float] = {}
@@ -96,6 +102,7 @@ class CommonSpaceDetectionService:
         self.frames_received_total = 0
         self.frames_skipped_total = 0
         self.frames_sampled_total = 0
+        self.frames_dropped_backpressure_total = 0
         self.events_saved_total = 0
         self.analysis_inflight = 0
 
@@ -117,13 +124,25 @@ class CommonSpaceDetectionService:
         if user_prompt:
             self.user_prompt = user_prompt
 
+    def configure_backpressure(
+        self,
+        enabled: bool,
+        max_analysis_queue_size: Optional[int] = None,
+    ):
+        self.backpressure_enabled = bool(enabled)
+        if max_analysis_queue_size is not None:
+            self.max_analysis_queue_size = max(1, int(max_analysis_queue_size))
+
     def get_runtime_metrics(self) -> Dict[str, Any]:
         with self.metrics_lock:
             return {
                 "sample_interval": self.sample_interval,
+                "backpressure_enabled": self.backpressure_enabled,
+                "max_analysis_queue_size": self.max_analysis_queue_size,
                 "frames_received_total": self.frames_received_total,
                 "frames_skipped_total": self.frames_skipped_total,
                 "frames_sampled_total": self.frames_sampled_total,
+                "frames_dropped_backpressure_total": self.frames_dropped_backpressure_total,
                 "events_saved_total": self.events_saved_total,
                 "analysis_inflight": self.analysis_inflight,
                 "received_fps_10s": self.received_counter.snapshot()["rate_per_sec"],
@@ -152,6 +171,13 @@ class CommonSpaceDetectionService:
             with self.metrics_lock:
                 self.frames_skipped_total += 1
             return
+
+        if self.backpressure_enabled:
+            queue_size = get_thread_pool_queue_size(self.analysis_pool)
+            if queue_size >= self.max_analysis_queue_size:
+                with self.metrics_lock:
+                    self.frames_dropped_backpressure_total += 1
+                return
 
         self.sampled_counter.add()
         with self.metrics_lock:

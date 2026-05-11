@@ -29,7 +29,7 @@ class QwenReportClient:
     def summarize_common_space_report(
         self,
         report: Dict[str, Any],
-        language: str = "zh-CN",
+        language: str = "en-US",
     ) -> Dict[str, Any]:
         system_prompt = self._build_system_prompt(language)
         user_prompt = self._build_user_prompt(report, language)
@@ -58,13 +58,15 @@ class QwenReportClient:
     def _build_system_prompt(language: str) -> str:
         if language.lower().startswith("zh"):
             return (
-                "你是一名公共空间运营分析助手。"
-                "请根据已经聚合好的结构化报告，输出准确、正式、简洁的中文总结。"
-                "只能基于提供的数据进行总结，不要臆测，不要补充报告中不存在的结论。"
+                "You are a public-space operations analysis assistant. "
+                "The user prefers Chinese, so write an accurate, formal, and concise Chinese summary. "
+                "Use only the supplied report data and do not invent facts."
             )
+
         return (
             "You are a public-space operations analysis assistant. "
-            "Write a concise and accurate summary from the provided structured report. "
+            "Write a concise, accurate, and professional English summary from the provided structured report. "
+            "Your response must be in English only. "
             "Do not invent facts beyond the supplied data."
         )
 
@@ -81,16 +83,19 @@ class QwenReportClient:
 
         if language.lower().startswith("zh"):
             instruction = (
-                "请基于以下公共空间报告数据，生成一段中文总结。"
-                "要求：1. 使用1到2段自然语言；2. 说明整体利用率、人流规模、主要活动与安全情况；"
-                "3. 若无事件，明确说明该时间段没有记录到公共空间事件；"
-                "4. 不要输出JSON，不要使用项目符号。"
+                "Generate the final answer in Chinese. "
+                "Use 1 to 2 short paragraphs of natural language. "
+                "Mention overall occupancy, people flow, major activities, and safety observations. "
+                "If there are no events, say so clearly. "
+                "Do not output JSON or bullet points."
             )
         else:
             instruction = (
-                "Generate a concise natural-language summary from the following common-space report. "
-                "Mention occupancy, people flow, major activities, and safety observations. "
-                "If there are no events, say so clearly. Do not output JSON."
+                "Generate a concise English summary from the following common-space report. "
+                "Use 1 to 2 short paragraphs of natural language. "
+                "Mention overall occupancy, people flow, major activities, and safety observations. "
+                "If there are no events, say so clearly. "
+                "Do not output JSON, bullet points, or any non-English text."
             )
 
         return f"{instruction}\n\nReport JSON:\n{json.dumps(report_payload, ensure_ascii=False, indent=2)}"
